@@ -6,9 +6,11 @@ GiB of Codex session JSONL. My honest reaction was, "what the shit?" Many of
 those files contained the same screenshots repeated through compaction and
 related sessions.
 
-Sessionfold helps recover disk space from large Codex and Claude Code history
-files. It finds repeated inline screenshots, stores each unique image once, and
-keeps enough information to restore the original JSONL file byte for byte.
+Sessionfold helps recover disk space from large Codex history files. It finds
+repeated inline screenshots, stores each unique image once, and keeps enough
+information to restore the original JSONL file byte for byte. Claude Code
+discovery is included for experimentation, but it is not a validated launch
+claim yet.
 
 This alpha includes:
 
