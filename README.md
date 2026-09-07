@@ -95,6 +95,7 @@ sessionfold scan
 sessionfold scan --deep --top 20
 sessionfold archive /path/to/completed.jsonl
 sessionfold archive /path/to/completed.jsonl --title "Storage archive"
+sessionfold archive /path/to/completed.jsonl --keep-free 2GiB
 sessionfold list
 sessionfold list --search "game-based"
 sessionfold verify ~/.sessionfold/archives/ARCHIVE/manifest.json
@@ -110,14 +111,16 @@ path, an archive ID, or an exact unique title:
 ```bash
 sessionfold verify "Plan storage cleanup"
 sessionfold restore ARCHIVE_ID --output ./restored.jsonl
+sessionfold restore "Plan storage cleanup" --original
 sessionfold label ARCHIVE_ID --title "Storage archive updated"
 ```
 
-Title lookup is best-effort and read-only. Codex does not document its local
-index as a public interface, so Sessionfold falls back to archive IDs and paths
-if that schema changes. You can supply `archive --title` or label an existing
-archive yourself. Sessionfold never derives a title by reading conversation
-bodies.
+Title lookup is best-effort and read-only. Sessionfold joins Codex's rollout
+index with its local picker catalog because different Codex builds populate
+titles in different places. Codex does not document either database as a public
+interface, so Sessionfold falls back to archive IDs and paths if those schemas
+change. You can supply `archive --title` or label an existing archive yourself.
+Sessionfold never derives a title by reading conversation bodies.
 
 The recommended workflow separates review from removal:
 
@@ -153,6 +156,15 @@ removed. When the source disk is critically full, choose an external store:
 sessionfold archive /path/to/completed.jsonl --store /Volumes/External/sessionfold
 ```
 
+The CLI conservatively requires enough free space for worst-case archive output,
+a small internal margin, and 1 GiB left untouched. Change the reserve with
+`--keep-free`, for example `--keep-free 2GiB`. If the volume is already
+completely full, the safe bootstrap options are an external store or freeing a
+small amount of regenerable cache before archiving the smallest completed
+session first.
+Sessionfold does not truncate an original incrementally because interruption
+during that operation could destroy the only complete copy.
+
 The initial archive format targets JSONL transcripts containing quoted
 `data:image/*;base64,...` values. Unknown or small data URIs remain inline.
 Transcript formats are vendor-owned and unstable, so compatibility must be
@@ -178,6 +190,10 @@ or `restore`.
   local process deliberately racing filesystem operations.
 - Codex owns its transcript format and can change it. Verify compatibility on
   synthetic data after major Codex updates before reclaiming original files.
+- Reclaimed sessions can remain visible but unavailable in Codex's picker.
+  `sessionfold list` marks these as `[cold]`; restore one by exact title with
+  `sessionfold restore "Title" --original`. Sessionfold deliberately does not
+  edit Codex's private catalog database.
 
 ## Safety and privacy
 

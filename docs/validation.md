@@ -1,8 +1,9 @@
-# Validation record for 0.1.0a5
+# Validation record for 0.1.0a6
 
 ## Completed locally
 
-- 30 unit, randomized boundary, metadata, and fault-injection tests pass.
+- 34 unit, randomized boundary, metadata, capacity, and fault-injection tests
+  pass.
 - Ruff lint and format checks pass.
 - Bandit reports no findings after review of the fixed `lsof` subprocess call.
 - Python byte-compilation passes.
@@ -19,6 +20,10 @@
 - The 0.1.0a5 title lookup surfaced a generated Codex task name from the local
   index without reading the rollout, found an older archive by that title, and
   verified its byte-exact reconstruction. `--no-titles` suppresses title output.
+- The 0.1.0a6 lookup joined a real rollout with the separate local picker
+  catalog and surfaced a title that a5 missed. A cold archive was found by its
+  picker title, and the original-path restore path is covered by a byte-exact
+  round-trip test.
 
 ## Real-corpus performance
 
@@ -29,9 +34,9 @@ The source was not modified. See `experiments/2026-09-06-feasibility.md`.
 
 ## CI
 
-- Version 0.1.0a4 passed GitHub Actions on Linux with Python 3.10, 3.12, and
-  3.14; macOS with Python 3.12; and Windows with Python 3.12. Version 0.1.0a5
-  is pending the same matrix. Local packaging, Ruff, Bandit, wheel and
+- Versions through 0.1.0a5 passed GitHub Actions on Linux with Python 3.10,
+  3.12, and 3.14; macOS with Python 3.12; and Windows with Python 3.12. Version
+  0.1.0a6 is pending the same matrix. Local packaging, Ruff, Bandit, wheel and
   source-distribution checks, and the plugin build pass.
 
 ## Not yet complete

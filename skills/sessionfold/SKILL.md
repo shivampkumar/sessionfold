@@ -27,7 +27,9 @@ Use the bundled `bin/sessionfold` command to inspect local agent histories.
 2. Run `bin/sessionfold scan --deep --top 20` on the largest files.
 3. Explain total use, largest files, duplicate image bytes, and recent/open state.
 4. If the user asks to archive, select completed files explicitly and run
-   `bin/sessionfold archive <file>...` without source removal first.
+   `bin/sessionfold archive <file>...` without source removal first. Keep the
+   default reserve or choose an explicit `--keep-free` value based on the
+   volume's free space.
 5. Report the Codex task name when available, the manifest path, and verified
    status. Title lookup is read-only and must never be substituted with parsing
    transcript content. If no name is available, offer `archive --title` or
@@ -35,16 +37,17 @@ Use the bundled `bin/sessionfold` command to inspect local agent histories.
 6. Only after explicit authorization, use `reclaim MANIFEST --yes` so the
    already-reviewed archive and exact source are verified again before removal.
 7. Use `verify` for a disk-light integrity check and `restore` to recover to a
-   new path. Never overwrite an existing path.
+   new path. Use `restore --original` only when the recorded source is absent.
+   Never overwrite an existing path.
 
 ## Commands
 
 ```bash
 bin/sessionfold scan [PATH ...] [--deep] [--top N] [--no-titles] [--json]
-bin/sessionfold archive FILE ... [--title TEXT] [--store PATH] [--min-age-minutes N] [--remove-source]
+bin/sessionfold archive FILE ... [--title TEXT] [--keep-free SIZE] [--store PATH] [--min-age-minutes N] [--remove-source]
 bin/sessionfold verify MANIFEST [--store PATH]
 bin/sessionfold reclaim MANIFEST --yes [--store PATH] [--min-age-minutes N]
-bin/sessionfold restore MANIFEST --output PATH [--store PATH]
+bin/sessionfold restore MANIFEST (--output PATH | --original) [--store PATH]
 bin/sessionfold label MANIFEST --title TEXT [--store PATH]
 bin/sessionfold list [--store PATH] [--search TEXT] [--no-titles] [--json]
 ```

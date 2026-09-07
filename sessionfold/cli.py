@@ -27,6 +27,7 @@ BASE64_SEPARATOR = b";base64,"
 BASE64_BYTES = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n"
 MIN_IMAGE_URI_BYTES = 4096
 MAX_IMAGE_URI_BYTES = 64 * 1024 * 1024
+ARCHIVE_HEADROOM_MARGIN = 64 * 1024 * 1024
 DEFAULT_STORE = Path.home() / ".sessionfold"
 
 
@@ -110,6 +111,47 @@ def human_bytes(value: int | None) -> str:
     return f"{amount:.1f} TiB"
 
 
+def parse_byte_size(value: str) -> int:
+    text = value.strip().lower().replace(" ", "")
+    units = {
+        "": 1,
+        "b": 1,
+        "k": 1024,
+        "kb": 1024,
+        "kib": 1024,
+        "m": 1024**2,
+        "mb": 1024**2,
+        "mib": 1024**2,
+        "g": 1024**3,
+        "gb": 1024**3,
+        "gib": 1024**3,
+        "t": 1024**4,
+        "tb": 1024**4,
+        "tib": 1024**4,
+    }
+    number = text
+    suffix = ""
+    for index, character in enumerate(text):
+        if not (character.isdigit() or character == "."):
+            number = text[:index]
+            suffix = text[index:]
+            break
+    try:
+        parsed = float(number)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(f"Invalid byte size: {value}") from error
+    if parsed < 0 or suffix not in units:
+        raise argparse.ArgumentTypeError(f"Invalid byte size: {value}")
+    return int(parsed * units[suffix])
+
+
+def available_bytes(path: Path) -> int:
+    candidate = path.expanduser().resolve(strict=False)
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return shutil.disk_usage(candidate).free
+
+
 def default_roots() -> list[Path]:
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     candidates = [codex_home / "sessions"]
@@ -156,6 +198,37 @@ def load_codex_session_metadata(
         for path in sorted(home.glob("state_*.sqlite"), reverse=True)
         if path != preferred and path.is_file()
     )
+    display_titles: dict[str, str] = {}
+    catalog = home / "sqlite" / "codex-dev.db"
+    catalog_connection: sqlite3.Connection | None = None
+    if catalog.is_file():
+        try:
+            catalog_connection = sqlite3.connect(
+                f"{catalog.resolve().as_uri()}?mode=ro", uri=True, timeout=0.25
+            )
+            catalog_connection.execute("PRAGMA query_only=ON")
+            columns = {
+                row[1]
+                for row in catalog_connection.execute(
+                    "PRAGMA table_info(local_thread_catalog)"
+                )
+            }
+            if {"thread_id", "display_title", "observation_sequence"}.issubset(columns):
+                rows = catalog_connection.execute(
+                    "SELECT thread_id, display_title FROM local_thread_catalog "
+                    "WHERE trim(display_title) != '' "
+                    "ORDER BY observation_sequence DESC"
+                )
+                for thread_id, raw_title in rows:
+                    title = _safe_title(raw_title)
+                    if title and isinstance(thread_id, str):
+                        display_titles.setdefault(thread_id, title)
+        except (OSError, sqlite3.Error):
+            pass
+        finally:
+            if catalog_connection is not None:
+                catalog_connection.close()
+
     metadata: dict[str, CodexSessionMetadata] = {}
     for database in candidates:
         connection: sqlite3.Connection | None = None
@@ -171,10 +244,10 @@ def load_codex_session_metadata(
                 continue
             rows = connection.execute(
                 "SELECT id, rollout_path, name FROM threads "
-                "WHERE name IS NOT NULL AND trim(name) != ''"
+                "WHERE rollout_path IS NOT NULL AND trim(rollout_path) != ''"
             )
             for thread_id, rollout_path, raw_title in rows:
-                title = _safe_title(raw_title)
+                title = display_titles.get(thread_id) or _safe_title(raw_title)
                 if (
                     title
                     and isinstance(thread_id, str)
@@ -613,6 +686,7 @@ def archive_file(
     min_age_minutes: int,
     remove_source: bool,
     title: str | None = None,
+    keep_free_bytes: int = 0,
 ) -> dict:
     requested_path = path.expanduser()
     if requested_path.is_symlink():
@@ -648,6 +722,17 @@ def archive_file(
     requested_title = _safe_title(title)
     if title is not None and requested_title is None:
         raise ValueError("Archive title must contain printable text")
+    if keep_free_bytes < 0:
+        raise ValueError("keep_free_bytes cannot be negative")
+
+    free_bytes = available_bytes(store)
+    required_bytes = before.st_size + keep_free_bytes + ARCHIVE_HEADROOM_MARGIN
+    if free_bytes < required_bytes:
+        raise RuntimeError(
+            f"Insufficient archive headroom: {human_bytes(free_bytes)} available, "
+            f"but worst-case output plus reserve requires {human_bytes(required_bytes)}. "
+            "Choose a smaller file, lower --keep-free, or use --store on another volume."
+        )
 
     store = store.expanduser().resolve()
     store.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -873,8 +958,14 @@ def reclaim_source(
 
 def command_scan(args: argparse.Namespace) -> int:
     roots = [Path(value) for value in args.paths] if args.paths else default_roots()
+    if not args.json:
+        print("Discovering Codex sessions...", file=sys.stderr, flush=True)
     files = collect_jsonl(roots)
     metadata = sorted(((path.stat().st_size, path) for path in files), reverse=True)
+    if not args.json:
+        print(
+            f"Inspecting {len(metadata)} session files...", file=sys.stderr, flush=True
+        )
     selected = {path for _, path in metadata[: args.top]} if args.deep else set()
     displayed = {path for _, path in metadata[: args.top]}
     reports: list[FileReport] = []
@@ -960,6 +1051,7 @@ def command_archive(args: argparse.Namespace) -> int:
             min_age_minutes=args.min_age_minutes,
             remove_source=args.remove_source,
             title=args.title,
+            keep_free_bytes=args.keep_free,
         )
         manifests.append(manifest)
         if not args.json:
@@ -980,8 +1072,16 @@ def command_archive(args: argparse.Namespace) -> int:
 def command_restore(args: argparse.Namespace) -> int:
     store = Path(args.store) if args.store else None
     manifest_path = manifest_path_from_reference(args.manifest, store or DEFAULT_STORE)
-    manifest = restore_stream(manifest_path, Path(args.output), store=store)
-    print(f"Restored and verified: {Path(args.output).expanduser().resolve()}")
+    if args.original:
+        payload = json.loads(manifest_path.read_text())
+        source = payload.get("source", {})
+        if not isinstance(source, dict) or not isinstance(source.get("path"), str):
+            raise TypeError("Archive manifest has no valid original source path")
+        output = Path(source["path"])
+    else:
+        output = Path(args.output)
+    manifest = restore_stream(manifest_path, output, store=store)
+    print(f"Restored and verified: {output.expanduser().resolve()}")
     print(f"Source SHA-256: {manifest['source']['sha256']}")
     return 0
 
@@ -1080,7 +1180,8 @@ def command_list(args: argparse.Namespace) -> int:
         if title:
             print(f"  {title}")
         print(
-            f"    {payload['archive_id']} | {human_bytes(payload['source']['size'])} | "
+            f"    [{'available' if Path(payload['source']['path']).exists() else 'cold'}] "
+            f"{payload['archive_id']} | {human_bytes(payload['source']['size'])} | "
             f"{payload['source']['path']}"
         )
     return 0
@@ -1121,6 +1222,13 @@ def build_parser() -> argparse.ArgumentParser:
     archive.add_argument("--store", default=str(DEFAULT_STORE))
     archive.add_argument("--min-age-minutes", type=int, default=60)
     archive.add_argument(
+        "--keep-free",
+        type=parse_byte_size,
+        default=parse_byte_size("1GiB"),
+        metavar="SIZE",
+        help="Reserve this much free space after worst-case archive output (default: 1GiB)",
+    )
+    archive.add_argument(
         "--title", help="Set a human-readable title when archiving exactly one file"
     )
     archive.add_argument("--remove-source", action="store_true")
@@ -1129,7 +1237,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     restore = subparsers.add_parser("restore", help="Restore one archive byte-for-byte")
     restore.add_argument("manifest", help="Manifest path, archive ID, or exact title")
-    restore.add_argument("--output", required=True)
+    restore_target = restore.add_mutually_exclusive_group(required=True)
+    restore_target.add_argument("--output")
+    restore_target.add_argument(
+        "--original",
+        action="store_true",
+        help="Restore to the exact original path recorded in the manifest",
+    )
     restore.add_argument(
         "--store", help="Override the blob store recorded in the manifest"
     )

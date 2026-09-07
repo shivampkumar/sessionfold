@@ -81,6 +81,35 @@ class SessionfoldTests(unittest.TestCase):
         self.assertEqual(found.title, "Plan storage cleanup")
         self.assertEqual(found.thread_id, "01a00000-0000-7000-8000-000000000001")
 
+    def test_codex_picker_title_is_joined_from_local_catalog(self) -> None:
+        path, _, codex_home = self.make_titled_codex_session(title="Legacy name")
+        state = sqlite3.connect(codex_home / "state_5.sqlite")
+        state.execute("UPDATE threads SET name = NULL")
+        state.commit()
+        state.close()
+        catalog_path = codex_home / "sqlite" / "codex-dev.db"
+        catalog_path.parent.mkdir()
+        catalog = sqlite3.connect(catalog_path)
+        catalog.execute(
+            "CREATE TABLE local_thread_catalog ("
+            "thread_id TEXT, display_title TEXT, observation_sequence INTEGER)"
+        )
+        catalog.execute(
+            "INSERT INTO local_thread_catalog VALUES (?, ?, ?)",
+            (
+                "01a00000-0000-7000-8000-000000000001",
+                "Picker display title",
+                1,
+            ),
+        )
+        catalog.commit()
+        catalog.close()
+        metadata = sessionfold.load_codex_session_metadata(codex_home)
+        self.assertEqual(
+            metadata[sessionfold._metadata_path_key(path)].title,
+            "Picker display title",
+        )
+
     @mock.patch.object(sessionfold, "open_by_process", return_value=False)
     def test_archive_records_codex_title_and_resolves_it(
         self, _open: mock.Mock
@@ -156,6 +185,43 @@ class SessionfoldTests(unittest.TestCase):
         updated = json.loads(Path(manifest["archive_path"]).read_text())
         self.assertEqual(updated["source"]["title"], "Storage archive updated")
         self.assertIn("Verified archive", output.getvalue())
+
+    @mock.patch.object(sessionfold, "available_bytes", return_value=1)
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_archive_refuses_insufficient_headroom(
+        self, _open: mock.Mock, _available: mock.Mock
+    ) -> None:
+        path, _ = self.make_session()
+        with self.assertRaisesRegex(RuntimeError, "Insufficient archive headroom"):
+            sessionfold.archive_file(path, self.store, 0, False)
+        self.assertFalse(self.store.exists())
+
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_restore_to_original_path(self, _open: mock.Mock) -> None:
+        path, original = self.make_session()
+        manifest = sessionfold.archive_file(path, self.store, 0, True)
+        self.assertFalse(path.exists())
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = sessionfold.main(
+                [
+                    "restore",
+                    manifest["archive_id"],
+                    "--store",
+                    str(self.store),
+                    "--original",
+                ]
+            )
+        self.assertEqual(result, 0)
+        self.assertEqual(path.read_bytes(), original)
+
+    def test_parse_byte_size(self) -> None:
+        self.assertEqual(sessionfold.parse_byte_size("2 GiB"), 2 * 1024**3)
+        self.assertEqual(sessionfold.parse_byte_size("512M"), 512 * 1024**2)
+        with self.assertRaisesRegex(
+            sessionfold.argparse.ArgumentTypeError, "Invalid byte size"
+        ):
+            sessionfold.parse_byte_size("many")
 
     @mock.patch.object(sessionfold, "open_by_process", return_value=False)
     def test_deep_scan_counts_duplicate_images(self, _open: mock.Mock) -> None:

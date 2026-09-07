@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0a6 : 2026-09-07
+
+- Resolve picker titles by joining Codex's rollout index with its local thread
+  catalog, fixing missing titles on builds that do not populate `threads.name`.
+- Add a conservative archive headroom check and `--keep-free SIZE`, defaulting
+  to a 1 GiB reserve in the CLI.
+- Print immediate discovery and inspection progress during human-readable scans.
+- Mark listed archives as `available` or `cold` based on source presence.
+- Add `restore --original` so a cold session can be restored to its recorded
+  Codex path by archive ID or exact unique title.
+
 ## 0.1.0a5 : 2026-09-07
 
 - Show Codex task names in scan and archive listings through a read-only,

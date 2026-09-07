@@ -1,6 +1,6 @@
 {
   "name": "sessionfold",
-  "version": "0.1.0-a5",
+  "version": "0.1.0-a6",
   "description": "Cold-archive completed Codex histories with byte-exact restore.",
   "author": {
     "name": "Shivam Kumar"

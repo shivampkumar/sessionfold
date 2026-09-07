@@ -1,4 +1,4 @@
-# Sessionfold 0.1.0a5
+# Sessionfold 0.1.0a6
 
 This started when my 20-day-old 1 TB Mac reached 80 MB of free space. I blamed
 the healthcare datasets I was working with, but the real culprit was about 566
@@ -42,3 +42,11 @@ names, and archives can be searched or addressed by ID or exact unique title.
 The lookup is local, read-only, and optional. It does not read conversation
 bodies to invent missing titles. Untitled archives can be named explicitly at
 archive time or relabeled later.
+
+Version 0.1.0a6 incorporates feedback from a rescue run on a completely full
+926 GiB volume. It fixes picker-title lookup for Codex builds that keep display
+titles in a separate catalog, adds a conservative free-space preflight with a
+configurable reserve, prints scan progress immediately, marks archives as cold
+or available, and can restore a cold session directly to its original Codex
+path by title. It does not truncate source files incrementally or edit Codex's
+private databases.

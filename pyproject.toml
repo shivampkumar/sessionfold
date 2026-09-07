@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sessionfold"
-version = "0.1.0a5"
+version = "0.1.0a6"
 description = "Free disk space by storing repeated screenshots in Codex histories only once"
 readme = "README.md"
 requires-python = ">=3.10"
