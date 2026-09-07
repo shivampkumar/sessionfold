@@ -1,4 +1,4 @@
-# Sessionfold 0.1.0a4
+# Sessionfold 0.1.0a5
 
 This started when my 20-day-old 1 TB Mac reached 80 MB of free space. I blamed
 the healthcare datasets I was working with, but the real culprit was about 566
@@ -30,8 +30,15 @@ full, put the archive on an external volume with `--store`. Codex is the only
 supported target in this alpha. Do not reclaim Claude Code histories with this
 release.
 
-Version 0.1.0a4 makes the cold-storage contract prominent: `archive` leaves the
+Version 0.1.0a4 made the cold-storage contract prominent: `archive` leaves the
 original and its Codex usability unchanged, while `reclaim` recovers space by
 removing the original JSONL. A reclaimed chat may disappear from Codex.
 Sessionfold guarantees byte-exact file restoration, but automatic reintegration
 into the Codex sidebar is not yet validated.
+
+Version 0.1.0a5 makes archives recognizable. Scans and listings show Codex task
+names when the local state index provides them, new manifests retain those
+names, and archives can be searched or addressed by ID or exact unique title.
+The lookup is local, read-only, and optional. It does not read conversation
+bodies to invent missing titles. Untitled archives can be named explicitly at
+archive time or relabeled later.

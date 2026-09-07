@@ -11,6 +11,8 @@ which Sessionfold does not currently deduplicate.
 It does not upload telemetry or session data, display conversation content, or
 modify an active transcript. Scanning is read-only. Source removal is optional
 and occurs only after a full byte-exact reconstruction has been verified.
+By default, scans and archive listings show the human-readable task names from
+Codex's local index. Use `--no-titles` if you do not want those names printed.
 
 ## Important: this is cold storage
 
@@ -92,11 +94,30 @@ python3 -m pip install .
 sessionfold scan
 sessionfold scan --deep --top 20
 sessionfold archive /path/to/completed.jsonl
+sessionfold archive /path/to/completed.jsonl --title "Storage archive"
 sessionfold list
+sessionfold list --search "game-based"
 sessionfold verify ~/.sessionfold/archives/ARCHIVE/manifest.json
 sessionfold reclaim ~/.sessionfold/archives/ARCHIVE/manifest.json --yes
 sessionfold restore ~/.sessionfold/archives/ARCHIVE/manifest.json --output ./restored.jsonl
 ```
+
+Sessionfold records the Codex task name in new archives when it is available.
+It can also enrich older archive listings from Codex's local index. After
+`sessionfold list`, `verify`, `reclaim`, and `restore` accept either a manifest
+path, an archive ID, or an exact unique title:
+
+```bash
+sessionfold verify "Plan storage cleanup"
+sessionfold restore ARCHIVE_ID --output ./restored.jsonl
+sessionfold label ARCHIVE_ID --title "Storage archive updated"
+```
+
+Title lookup is best-effort and read-only. Codex does not document its local
+index as a public interface, so Sessionfold falls back to archive IDs and paths
+if that schema changes. You can supply `archive --title` or label an existing
+archive yourself. Sessionfold never derives a title by reading conversation
+bodies.
 
 The recommended workflow separates review from removal:
 
@@ -121,6 +142,7 @@ it is restored.
 ## Defaults and scope
 
 - Codex discovery: `${CODEX_HOME:-~/.codex}/sessions`
+- Codex task names: read-only, best-effort lookup in the local Codex state index
 - Archive store: `~/.sessionfold`
 - Inline image candidates: 4 KiB to 64 MiB each
 

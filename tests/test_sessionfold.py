@@ -5,9 +5,11 @@ import io
 import json
 import os
 import random
+import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -50,6 +52,110 @@ class SessionfoldTests(unittest.TestCase):
         path = self.root / "rollout-test.jsonl"
         path.write_bytes(content)
         return path, content
+
+    def make_titled_codex_session(
+        self, title: str = "Plan storage cleanup"
+    ) -> tuple[Path, bytes, Path]:
+        codex_home = self.root / ".codex"
+        session_dir = codex_home / "sessions" / "2026" / "09" / "07"
+        session_dir.mkdir(parents=True)
+        path, content = self.make_session()
+        path = path.rename(
+            session_dir
+            / "rollout-2026-09-07T01-02-03-01a00000-0000-7000-8000-000000000001.jsonl"
+        )
+        database = sqlite3.connect(codex_home / "state_5.sqlite")
+        database.execute("CREATE TABLE threads (id TEXT, rollout_path TEXT, name TEXT)")
+        database.execute(
+            "INSERT INTO threads VALUES (?, ?, ?)",
+            ("01a00000-0000-7000-8000-000000000001", str(path), title),
+        )
+        database.commit()
+        database.close()
+        return path, content, codex_home
+
+    def test_codex_title_index_is_read_only_and_path_based(self) -> None:
+        path, _, codex_home = self.make_titled_codex_session()
+        metadata = sessionfold.load_codex_session_metadata(codex_home)
+        found = metadata[sessionfold._metadata_path_key(path)]
+        self.assertEqual(found.title, "Plan storage cleanup")
+        self.assertEqual(found.thread_id, "01a00000-0000-7000-8000-000000000001")
+
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_archive_records_codex_title_and_resolves_it(
+        self, _open: mock.Mock
+    ) -> None:
+        path, _, codex_home = self.make_titled_codex_session()
+        with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}):
+            manifest = sessionfold.archive_file(path, self.store, 0, False)
+            self.assertEqual(manifest["source"]["title"], "Plan storage cleanup")
+            by_title = sessionfold.manifest_path_from_reference(
+                "Plan storage cleanup", self.store
+            )
+            by_id = sessionfold.manifest_path_from_reference(
+                manifest["archive_id"], self.store
+            )
+        self.assertEqual(by_title, Path(manifest["archive_path"]))
+        self.assertEqual(by_id, Path(manifest["archive_path"]))
+
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_scan_and_list_show_codex_title(self, _open: mock.Mock) -> None:
+        path, _, codex_home = self.make_titled_codex_session()
+        with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}):
+            scan_output = io.StringIO()
+            with redirect_stdout(scan_output):
+                self.assertEqual(sessionfold.main(["scan", str(path), "--top", "1"]), 0)
+            sessionfold.archive_file(path, self.store, 0, False)
+            list_output = io.StringIO()
+            with redirect_stdout(list_output):
+                self.assertEqual(
+                    sessionfold.main(
+                        [
+                            "list",
+                            "--store",
+                            str(self.store),
+                            "--search",
+                            "storage cleanup",
+                        ]
+                    ),
+                    0,
+                )
+            private_output = io.StringIO()
+            with redirect_stdout(private_output):
+                self.assertEqual(
+                    sessionfold.main(
+                        ["list", "--store", str(self.store), "--no-titles"]
+                    ),
+                    0,
+                )
+        self.assertIn("Plan storage cleanup", scan_output.getvalue())
+        self.assertIn("Plan storage cleanup", list_output.getvalue())
+        self.assertNotIn("Plan storage cleanup", private_output.getvalue())
+
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_manual_archive_title_and_relabel(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        manifest = sessionfold.archive_file(
+            path, self.store, 0, False, title="Storage archive"
+        )
+        self.assertEqual(manifest["source"]["title"], "Storage archive")
+        self.assertEqual(manifest["source"]["title_source"], "user")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = sessionfold.main(
+                [
+                    "label",
+                    manifest["archive_id"],
+                    "--store",
+                    str(self.store),
+                    "--title",
+                    "Storage archive updated",
+                ]
+            )
+        self.assertEqual(result, 0)
+        updated = json.loads(Path(manifest["archive_path"]).read_text())
+        self.assertEqual(updated["source"]["title"], "Storage archive updated")
+        self.assertIn("Verified archive", output.getvalue())
 
     @mock.patch.object(sessionfold, "open_by_process", return_value=False)
     def test_deep_scan_counts_duplicate_images(self, _open: mock.Mock) -> None:

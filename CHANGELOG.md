@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0a5 : 2026-09-07
+
+- Show Codex task names in scan and archive listings through a read-only,
+  best-effort lookup of the local Codex state index.
+- Record available task names and thread IDs in new archive manifests.
+- Add archive search and accept a manifest path, archive ID, or exact unique
+  title for verify, reclaim, and restore.
+- Add `--no-titles` to suppress task-name lookup and display.
+- Add explicit titles with `archive --title` and relabel existing archives with
+  `sessionfold label`.
+
 ## 0.1.0a4 : 2026-09-07
 
 - State prominently that the current alpha supports Codex only.

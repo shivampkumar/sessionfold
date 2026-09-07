@@ -28,7 +28,10 @@ Use the bundled `bin/sessionfold` command to inspect local agent histories.
 3. Explain total use, largest files, duplicate image bytes, and recent/open state.
 4. If the user asks to archive, select completed files explicitly and run
    `bin/sessionfold archive <file>...` without source removal first.
-5. Report the manifest path and verified status.
+5. Report the Codex task name when available, the manifest path, and verified
+   status. Title lookup is read-only and must never be substituted with parsing
+   transcript content. If no name is available, offer `archive --title` or
+   `label` instead of inventing one from transcript content.
 6. Only after explicit authorization, use `reclaim MANIFEST --yes` so the
    already-reviewed archive and exact source are verified again before removal.
 7. Use `verify` for a disk-light integrity check and `restore` to recover to a
@@ -37,12 +40,13 @@ Use the bundled `bin/sessionfold` command to inspect local agent histories.
 ## Commands
 
 ```bash
-bin/sessionfold scan [PATH ...] [--deep] [--top N] [--json]
-bin/sessionfold archive FILE ... [--store PATH] [--min-age-minutes N] [--remove-source]
+bin/sessionfold scan [PATH ...] [--deep] [--top N] [--no-titles] [--json]
+bin/sessionfold archive FILE ... [--title TEXT] [--store PATH] [--min-age-minutes N] [--remove-source]
 bin/sessionfold verify MANIFEST [--store PATH]
 bin/sessionfold reclaim MANIFEST --yes [--store PATH] [--min-age-minutes N]
 bin/sessionfold restore MANIFEST --output PATH [--store PATH]
-bin/sessionfold list [--store PATH] [--json]
+bin/sessionfold label MANIFEST --title TEXT [--store PATH]
+bin/sessionfold list [--store PATH] [--search TEXT] [--no-titles] [--json]
 ```
 
 The default store is `~/.sessionfold`. Codex is discovered under

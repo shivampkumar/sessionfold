@@ -44,3 +44,9 @@ interrupted manifest update can be completed safely on the next run.
 The `store_root` field is advisory and can be overridden after relocation with
 `--store`. Schema v2 is not encrypted and has no garbage collector. Interrupted
 archives can leave unreferenced blobs; deleting blobs manually is unsafe.
+
+New manifests may include optional `source.title`, `source.title_source`, and
+`source.thread_id` metadata copied from Codex's local state index or supplied by
+the user. These fields are for discovery only and do not participate in
+reconstruction or integrity checks. Older v2 manifests remain valid without
+them.

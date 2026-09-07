@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import stat
 
 # This module invokes only a resolved lsof executable with shell=False.
@@ -44,12 +45,20 @@ class FileReport:
     modified_at: str
     recent: bool
     open_by_process: bool | None
+    title: str | None = None
+    thread_id: str | None = None
     image_occurrences: int | None = None
     image_bytes: int | None = None
     unique_image_bytes: int | None = None
     duplicate_image_bytes: int | None = None
     replacement_history_records: int | None = None
     largest_image_bytes: int | None = None
+
+
+@dataclass(frozen=True)
+class CodexSessionMetadata:
+    title: str
+    thread_id: str
 
 
 class StreamingMarkerCounter:
@@ -114,6 +123,83 @@ def detect_tool(path: Path) -> str:
     if "/.claude/" in text or "\\.claude\\" in text:
         return "claude-code"
     return "unknown"
+
+
+def _metadata_path_key(path: str | Path) -> str:
+    return os.path.normcase(str(Path(path).expanduser().resolve(strict=False)))
+
+
+def _safe_title(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    printable = "".join(
+        character if character.isprintable() else " " for character in value
+    )
+    title = " ".join(printable.split())
+    return title[:200] or None
+
+
+def load_codex_session_metadata(
+    codex_home: Path | None = None,
+) -> dict[str, CodexSessionMetadata]:
+    """Read Codex's optional title index without touching transcript content."""
+
+    home = (
+        codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    ).expanduser()
+    preferred = home / "state_5.sqlite"
+    candidates = []
+    if preferred.is_file():
+        candidates.append(preferred)
+    candidates.extend(
+        path
+        for path in sorted(home.glob("state_*.sqlite"), reverse=True)
+        if path != preferred and path.is_file()
+    )
+    metadata: dict[str, CodexSessionMetadata] = {}
+    for database in candidates:
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = sqlite3.connect(
+                f"{database.resolve().as_uri()}?mode=ro", uri=True, timeout=0.25
+            )
+            connection.execute("PRAGMA query_only=ON")
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(threads)")
+            }
+            if not {"id", "rollout_path", "name"}.issubset(columns):
+                continue
+            rows = connection.execute(
+                "SELECT id, rollout_path, name FROM threads "
+                "WHERE name IS NOT NULL AND trim(name) != ''"
+            )
+            for thread_id, rollout_path, raw_title in rows:
+                title = _safe_title(raw_title)
+                if (
+                    title
+                    and isinstance(thread_id, str)
+                    and isinstance(rollout_path, str)
+                ):
+                    metadata.setdefault(
+                        _metadata_path_key(rollout_path),
+                        CodexSessionMetadata(title=title, thread_id=thread_id),
+                    )
+        except (OSError, sqlite3.Error):
+            continue
+        finally:
+            if connection is not None:
+                connection.close()
+    return metadata
+
+
+def codex_metadata_for_path(
+    path: str | Path,
+    metadata: dict[str, CodexSessionMetadata] | None = None,
+) -> CodexSessionMetadata | None:
+    if detect_tool(Path(path)) != "codex":
+        return None
+    index = metadata if metadata is not None else load_codex_session_metadata()
+    return index.get(_metadata_path_key(path))
 
 
 def collect_jsonl(paths: Sequence[Path]) -> list[Path]:
@@ -344,6 +430,45 @@ def manifest_path_from_input(path: Path) -> Path:
     return expanded
 
 
+def manifest_path_from_reference(reference: str, store: Path) -> Path:
+    """Resolve a manifest path, archive ID, or exact unique Codex title."""
+
+    possible_path = Path(reference).expanduser()
+    if possible_path.exists():
+        return manifest_path_from_input(possible_path)
+
+    archive_root = store.expanduser().resolve() / "archives"
+    if Path(reference).name == reference and reference not in {".", ".."}:
+        by_id = archive_root / reference / "manifest.json"
+        if by_id.is_file():
+            return by_id
+
+    title_key = reference.casefold()
+    metadata = load_codex_session_metadata()
+    matches: list[Path] = []
+    for manifest_path in archive_root.glob("*/manifest.json"):
+        try:
+            payload = json.loads(manifest_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        source = payload.get("source", {})
+        title = _safe_title(source.get("title")) if isinstance(source, dict) else None
+        if title is None and isinstance(source, dict):
+            found = codex_metadata_for_path(source.get("path", ""), metadata)
+            title = found.title if found else None
+        if title and title.casefold() == title_key:
+            matches.append(manifest_path)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise RuntimeError(
+            f"Archive title is ambiguous ({len(matches)} matches); use the archive ID"
+        )
+    raise FileNotFoundError(
+        f"Archive not found as a path, archive ID, or exact title: {reference}"
+    )
+
+
 def _copy_exact(source: BinaryIO, output: BinaryIO, count: int, digest: object) -> None:
     remaining = count
     while remaining:
@@ -483,7 +608,11 @@ def restore_stream(
 
 
 def archive_file(
-    path: Path, store: Path, min_age_minutes: int, remove_source: bool
+    path: Path,
+    store: Path,
+    min_age_minutes: int,
+    remove_source: bool,
+    title: str | None = None,
 ) -> dict:
     requested_path = path.expanduser()
     if requested_path.is_symlink():
@@ -514,6 +643,11 @@ def archive_file(
         raise RuntimeError(
             "Cannot safely remove source because open-file detection is unavailable"
         )
+
+    session_metadata = codex_metadata_for_path(path)
+    requested_title = _safe_title(title)
+    if title is not None and requested_title is None:
+        raise ValueError("Archive title must contain printable text")
 
     store = store.expanduser().resolve()
     store.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -588,6 +722,14 @@ def archive_file(
                 "sequence": image_sequence,
             },
         }
+        if requested_title is not None:
+            manifest["source"]["title"] = requested_title
+            manifest["source"]["title_source"] = "user"
+        elif session_metadata is not None:
+            manifest["source"]["title"] = session_metadata.title
+            manifest["source"]["title_source"] = "codex"
+        if session_metadata is not None:
+            manifest["source"]["thread_id"] = session_metadata.thread_id
         manifest_file = temporary_dir / "manifest.json"
         write_json_atomic(manifest_file, manifest)
         verify_archive(manifest_file, store=store)
@@ -738,6 +880,7 @@ def command_scan(args: argparse.Namespace) -> int:
     reports: list[FileReport] = []
     global_digests: dict[str, int] = {}
     deep_image_bytes = 0
+    codex_metadata = load_codex_session_metadata()
 
     for _, path in metadata:
         report, digests = analyze_file(
@@ -746,6 +889,11 @@ def command_scan(args: argparse.Namespace) -> int:
             recent_minutes=args.recent_minutes,
             check_open=path in displayed,
         )
+        if not args.no_titles:
+            found = codex_metadata_for_path(path, codex_metadata)
+            if found is not None:
+                report.title = found.title
+                report.thread_id = found.thread_id
         reports.append(report)
         if report.image_bytes is not None:
             deep_image_bytes += report.image_bytes
@@ -795,12 +943,15 @@ def command_scan(args: argparse.Namespace) -> int:
                 f" | images {human_bytes(report.image_bytes)}, "
                 f"duplicate {human_bytes(report.duplicate_image_bytes)}"
             )
-        print(f"  {human_bytes(report.size):>10}  {report.path}{suffix}{detail}")
+        title = f" | {report.title}" if report.title else ""
+        print(f"  {human_bytes(report.size):>10}  {report.path}{suffix}{title}{detail}")
     return 0
 
 
 def command_archive(args: argparse.Namespace) -> int:
     store = Path(args.store)
+    if args.title and len(args.files) != 1:
+        raise RuntimeError("--title can be used only when archiving one file")
     manifests = []
     for value in args.files:
         manifest = archive_file(
@@ -808,10 +959,13 @@ def command_archive(args: argparse.Namespace) -> int:
             store,
             min_age_minutes=args.min_age_minutes,
             remove_source=args.remove_source,
+            title=args.title,
         )
         manifests.append(manifest)
         if not args.json:
             print(f"Verified archive: {manifest['archive_path']}")
+            if manifest["source"].get("title"):
+                print(f"  title: {manifest['source']['title']}")
             print(
                 "  images: "
                 f"{manifest['images']['occurrences']} occurrences, "
@@ -825,7 +979,8 @@ def command_archive(args: argparse.Namespace) -> int:
 
 def command_restore(args: argparse.Namespace) -> int:
     store = Path(args.store) if args.store else None
-    manifest = restore_stream(Path(args.manifest), Path(args.output), store=store)
+    manifest_path = manifest_path_from_reference(args.manifest, store or DEFAULT_STORE)
+    manifest = restore_stream(manifest_path, Path(args.output), store=store)
     print(f"Restored and verified: {Path(args.output).expanduser().resolve()}")
     print(f"Source SHA-256: {manifest['source']['sha256']}")
     return 0
@@ -833,8 +988,9 @@ def command_restore(args: argparse.Namespace) -> int:
 
 def command_verify(args: argparse.Namespace) -> int:
     store = Path(args.store) if args.store else None
-    manifest = verify_archive(Path(args.manifest), store=store)
-    print(f"Archive is byte-exact: {manifest_path_from_input(Path(args.manifest))}")
+    manifest_path = manifest_path_from_reference(args.manifest, store or DEFAULT_STORE)
+    manifest = verify_archive(manifest_path, store=store)
+    print(f"Archive is byte-exact: {manifest_path}")
     print(f"Source SHA-256: {manifest['source']['sha256']}")
     return 0
 
@@ -845,33 +1001,86 @@ def command_reclaim(args: argparse.Namespace) -> int:
             "Reclaim requires --yes after you review the exact manifest and source path"
         )
     store = Path(args.store) if args.store else None
+    manifest_path = manifest_path_from_reference(args.manifest, store or DEFAULT_STORE)
     manifest = reclaim_source(
-        Path(args.manifest),
+        manifest_path,
         store=store,
         min_age_minutes=args.min_age_minutes,
     )
     print(f"Removed archived source: {manifest['source']['path']}")
-    print(f"Verified archive remains: {manifest_path_from_input(Path(args.manifest))}")
+    print(f"Verified archive remains: {manifest_path}")
+    return 0
+
+
+def command_label(args: argparse.Namespace) -> int:
+    store = Path(args.store) if args.store else DEFAULT_STORE
+    manifest_path = manifest_path_from_reference(args.manifest, store)
+    verify_archive(manifest_path, store=store if args.store else None)
+    manifest = json.loads(manifest_path.read_text())
+    title = _safe_title(args.title)
+    if title is None:
+        raise ValueError("Archive title must contain printable text")
+    source = manifest.get("source")
+    if not isinstance(source, dict):
+        raise TypeError("Archive manifest has no valid source record")
+    source["title"] = title
+    source["title_source"] = "user"
+    write_json_atomic(manifest_path, manifest)
+    verify_archive(manifest_path, store=store if args.store else None)
+    print(f"Archive title: {title}")
+    print(f"Verified archive: {manifest_path}")
     return 0
 
 
 def command_list(args: argparse.Namespace) -> int:
     store = Path(args.store).expanduser().resolve()
     manifests = []
+    codex_metadata = load_codex_session_metadata()
     for manifest_path in sorted((store / "archives").glob("*/manifest.json")):
         try:
             payload = json.loads(manifest_path.read_text())
             payload["manifest_path"] = str(manifest_path)
+            source = payload.get("source", {})
+            if args.no_titles and isinstance(source, dict):
+                source.pop("title", None)
+                source.pop("title_source", None)
+                source.pop("thread_id", None)
+            elif isinstance(source, dict):
+                title = _safe_title(source.get("title"))
+                if title is None:
+                    found = codex_metadata_for_path(
+                        source.get("path", ""), codex_metadata
+                    )
+                    if found is not None:
+                        source["title"] = found.title
+                        source.setdefault("thread_id", found.thread_id)
             manifests.append(payload)
         except (OSError, json.JSONDecodeError):
             continue
+    if args.search:
+        query = args.search.casefold()
+        manifests = [
+            payload
+            for payload in manifests
+            if query
+            in " ".join(
+                (
+                    str(payload.get("archive_id", "")),
+                    str(payload.get("source", {}).get("title", "")),
+                    str(payload.get("source", {}).get("path", "")),
+                )
+            ).casefold()
+        ]
     if args.json:
         print(json.dumps(manifests, indent=2))
         return 0
     print(f"Archives: {len(manifests)}")
     for payload in manifests:
+        title = payload["source"].get("title")
+        if title:
+            print(f"  {title}")
         print(
-            f"  {payload['archive_id']} | {human_bytes(payload['source']['size'])} | "
+            f"    {payload['archive_id']} | {human_bytes(payload['source']['size'])} | "
             f"{payload['source']['path']}"
         )
     return 0
@@ -897,6 +1106,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--top", type=int, default=20, help="Largest files to report/deep-scan"
     )
     scan.add_argument("--recent-minutes", type=int, default=30)
+    scan.add_argument(
+        "--no-titles",
+        action="store_true",
+        help="Do not read or display Codex task names",
+    )
     scan.add_argument("--json", action="store_true")
     scan.set_defaults(func=command_scan)
 
@@ -906,12 +1120,15 @@ def build_parser() -> argparse.ArgumentParser:
     archive.add_argument("files", nargs="+", help="Explicit completed JSONL files")
     archive.add_argument("--store", default=str(DEFAULT_STORE))
     archive.add_argument("--min-age-minutes", type=int, default=60)
+    archive.add_argument(
+        "--title", help="Set a human-readable title when archiving exactly one file"
+    )
     archive.add_argument("--remove-source", action="store_true")
     archive.add_argument("--json", action="store_true")
     archive.set_defaults(func=command_archive)
 
     restore = subparsers.add_parser("restore", help="Restore one archive byte-for-byte")
-    restore.add_argument("manifest")
+    restore.add_argument("manifest", help="Manifest path, archive ID, or exact title")
     restore.add_argument("--output", required=True)
     restore.add_argument(
         "--store", help="Override the blob store recorded in the manifest"
@@ -922,7 +1139,7 @@ def build_parser() -> argparse.ArgumentParser:
         "verify",
         help="Verify byte-exact reconstruction without writing the restored file",
     )
-    verify.add_argument("manifest")
+    verify.add_argument("manifest", help="Manifest path, archive ID, or exact title")
     verify.add_argument(
         "--store", help="Override the blob store recorded in the manifest"
     )
@@ -932,7 +1149,7 @@ def build_parser() -> argparse.ArgumentParser:
         "reclaim",
         help="Re-verify one archive, then remove its exact original source",
     )
-    reclaim.add_argument("manifest")
+    reclaim.add_argument("manifest", help="Manifest path, archive ID, or exact title")
     reclaim.add_argument(
         "--store", help="Override the blob store recorded in the manifest"
     )
@@ -944,8 +1161,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reclaim.set_defaults(func=command_reclaim)
 
+    label = subparsers.add_parser(
+        "label", help="Add or replace the human-readable title of one archive"
+    )
+    label.add_argument("manifest", help="Manifest path, archive ID, or exact title")
+    label.add_argument("--title", required=True)
+    label.add_argument(
+        "--store", help="Override the blob store recorded in the manifest"
+    )
+    label.set_defaults(func=command_label)
+
     listing = subparsers.add_parser("list", help="List local archives")
     listing.add_argument("--store", default=str(DEFAULT_STORE))
+    listing.add_argument("--search", help="Filter by title, archive ID, or source path")
+    listing.add_argument(
+        "--no-titles",
+        action="store_true",
+        help="Do not read or display Codex task names",
+    )
     listing.add_argument("--json", action="store_true")
     listing.set_defaults(func=command_list)
     return parser
