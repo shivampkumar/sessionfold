@@ -15,7 +15,7 @@ contact method.
 ## Threat model
 
 Agent histories may contain credentials, private source code, health data, or
-other sensitive material. Agent Coldstore therefore makes no network calls,
+other sensitive material. Sessionfold therefore makes no network calls,
 does not display transcript content, refuses implicit deletion, uses explicit
 paths for mutation, verifies reconstructed source hashes, and never overwrites
 restore targets.

@@ -1,6 +1,6 @@
-# Agent Coldstore
+# Sessionfold
 
-Agent Coldstore is a local-first disk safety tool for Codex and Claude Code
+Sessionfold is a local-first disk safety tool for Codex and Claude Code
 histories. It finds oversized JSONL sessions and creates lossless,
 content-addressed archives in which identical inline images are stored once
 across every archived session.
@@ -16,7 +16,7 @@ Compaction and forks may repeat the same image thousands of times. Ordinary
 gzip cannot efficiently deduplicate copies that are far apart or in different
 files.
 
-Agent Coldstore provides four operations:
+Sessionfold provides five operations:
 
 - `scan` inventories histories; `--deep` hashes inline images and estimates
   duplicate bytes without decoding or displaying them.
@@ -24,6 +24,8 @@ Agent Coldstore provides four operations:
   stores images in a global SHA-256 content-addressed store.
 - `verify` reconstructs and hashes the full logical transcript without writing
   a source-size temporary file.
+- `reclaim` verifies the archive and original again, then removes only the exact
+  source named in the manifest after explicit confirmation.
 - `restore` recreates the original JSONL byte-for-byte at a new path.
 
 ## Install from source
@@ -32,47 +34,58 @@ Requires Python 3.10 or newer and has no runtime Python dependencies.
 
 ```bash
 python3 -m pip install .
-agent-coldstore scan
+sessionfold scan
 ```
 
 Without installing:
 
 ```bash
-./bin/agent-coldstore scan
+./bin/sessionfold scan
 ```
 
 ## Usage
 
 ```bash
-agent-coldstore scan
-agent-coldstore scan --deep --top 20
-agent-coldstore archive /path/to/completed.jsonl
-agent-coldstore list
-agent-coldstore verify ~/.agent-coldstore/archives/ARCHIVE/manifest.json
-agent-coldstore restore ~/.agent-coldstore/archives/ARCHIVE/manifest.json --output ./restored.jsonl
+sessionfold scan
+sessionfold scan --deep --top 20
+sessionfold archive /path/to/completed.jsonl
+sessionfold list
+sessionfold verify ~/.sessionfold/archives/ARCHIVE/manifest.json
+sessionfold reclaim ~/.sessionfold/archives/ARCHIVE/manifest.json --yes
+sessionfold restore ~/.sessionfold/archives/ARCHIVE/manifest.json --output ./restored.jsonl
 ```
 
-To reclaim source space after verification:
+The recommended workflow separates review from removal:
 
 ```bash
-agent-coldstore archive /path/to/completed.jsonl --remove-source
+sessionfold archive /path/to/completed.jsonl
+sessionfold verify ~/.sessionfold/archives/ARCHIVE/manifest.json
+sessionfold reclaim ~/.sessionfold/archives/ARCHIVE/manifest.json --yes
 ```
 
-`--remove-source` refuses recent files, files open by another process, and
-platforms where open-file detection is unavailable. Removing a vendor
-transcript may hide that session from the product UI until it is restored.
+For a one-command archive and removal:
+
+```bash
+sessionfold archive /path/to/completed.jsonl --remove-source
+```
+
+Both removal paths refuse recent files, files open by another process, changed
+sources, and platforms where open-file detection is unavailable. `reclaim`
+also reconstructs the archive again before hashing and removing the source.
+Removing a vendor transcript may hide that session from the product UI until
+it is restored.
 
 ## Defaults and scope
 
 - Codex discovery: `${CODEX_HOME:-~/.codex}/sessions`
 - Claude Code discovery: `~/.claude/projects`
-- Archive store: `~/.agent-coldstore`
+- Archive store: `~/.sessionfold`
 - Inline image candidates: 4 KiB to 64 MiB each
 
 The initial archive format targets JSONL transcripts containing quoted
 `data:image/*;base64,...` values. Unknown or small data URIs remain inline.
 Transcript formats are vendor-owned and unstable, so compatibility must be
-tested as they evolve. Agent Coldstore is archival storage; Codex and Claude
+tested as they evolve. Sessionfold is archival storage; Codex and Claude
 Code do not read its archive format directly.
 
 If an archive store is relocated, pass its new root with `--store` to `verify`
@@ -101,7 +114,7 @@ warning above a configurable threshold; it never archives or deletes.
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile agent_coldstore/cli.py scripts/hook_guard.py
+python3 -m py_compile sessionfold/cli.py scripts/hook_guard.py
 python3 -m build
 ```
 

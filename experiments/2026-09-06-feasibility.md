@@ -1,4 +1,4 @@
-# Agent Coldstore feasibility benchmark — 2026-09-06
+# Sessionfold feasibility benchmark : 2026-09-06
 
 ## Decision
 
@@ -76,8 +76,8 @@ source was not changed or removed.
 | Maximum resident set | 70,893,568 bytes |
 
 An independent `verify` invocation reconstructed and matched the full source
-SHA-256 (`59e2694d…24cba10`) while discarding the reconstructed bytes. Unit tests
-also exercise a physical restore and assert byte-for-byte equality.
+SHA-256 while discarding the reconstructed bytes. Unit tests also exercise a
+physical restore and assert byte-for-byte equality.
 
 ## Competitive boundary
 

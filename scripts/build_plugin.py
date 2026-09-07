@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a minimal deterministic Agent Coldstore plugin ZIP."""
+"""Build a minimal deterministic Sessionfold plugin ZIP."""
 
 from __future__ import annotations
 
@@ -9,17 +9,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-OUTPUT = DIST / "agent-coldstore-plugin-0.1.0.zip"
+OUTPUT = DIST / "sessionfold-plugin-0.1.0.zip"
 INCLUDE = (
     ROOT / ".codex-plugin" / "plugin.json",
     ROOT / ".claude-plugin" / "plugin.json",
-    ROOT / "agent_coldstore" / "__init__.py",
-    ROOT / "agent_coldstore" / "__main__.py",
-    ROOT / "agent_coldstore" / "cli.py",
-    ROOT / "bin" / "agent-coldstore",
+    ROOT / "sessionfold" / "__init__.py",
+    ROOT / "sessionfold" / "__main__.py",
+    ROOT / "sessionfold" / "cli.py",
+    ROOT / "bin" / "sessionfold",
     ROOT / "hooks" / "hooks.json",
     ROOT / "scripts" / "hook_guard.py",
-    ROOT / "skills" / "agent-coldstore" / "SKILL.md",
+    ROOT / "skills" / "sessionfold" / "SKILL.md",
     ROOT / "README.md",
     ROOT / "SECURITY.md",
     ROOT / "PRIVACY.md",
@@ -39,7 +39,7 @@ def main() -> int:
             info = zipfile.ZipInfo(archive_name, date_time=(2026, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = (
-                (0o755 if source.name == "agent-coldstore" else 0o644) & 0xFFFF
+                (0o755 if source.name == "sessionfold" else 0o644) & 0xFFFF
             ) << 16
             bundle.writestr(info, source.read_bytes(), compresslevel=9)
     digest = hashlib.sha256(OUTPUT.read_bytes()).hexdigest()

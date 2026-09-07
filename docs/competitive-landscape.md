@@ -10,7 +10,7 @@ The project is intentionally narrower than context-management tools.
 - [Codex JSON I/O Guard](https://github.com/Howard0401/codex-session-json-io-guard)
   externalizes image data while rewriting live JSONL.
 
-Agent Coldstore's distinct contract is global content-addressed cold storage for
+Sessionfold's distinct contract is global content-addressed cold storage for
 completed histories with a byte-exact restore path, no live-transcript rewrite,
 and deletion disabled by default. If the project drifts into a generic viewer,
 summarizer, or in-place context trimmer, that differentiation disappears.

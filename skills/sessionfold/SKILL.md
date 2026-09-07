@@ -1,11 +1,11 @@
 ---
-name: agent-coldstore
+name: sessionfold
 description: Audit disk usage from local Codex or Claude Code histories, identify repeated inline image payloads, and create or restore safe deduplicated archives. Use when histories, sessions, rollout JSONL, screenshots, compaction, or agent storage consume excessive disk or cause the app to slow, freeze, or fail.
 ---
 
-# Agent Coldstore
+# Sessionfold
 
-Use the bundled `bin/agent-coldstore` command to inspect local agent histories.
+Use the bundled `bin/sessionfold` command to inspect local agent histories.
 
 ## Safety requirements
 
@@ -23,25 +23,27 @@ Use the bundled `bin/agent-coldstore` command to inspect local agent histories.
 
 ## Workflow
 
-1. Run `bin/agent-coldstore scan` for a fast inventory.
-2. Run `bin/agent-coldstore scan --deep --top 20` on the largest files.
+1. Run `bin/sessionfold scan` for a fast inventory.
+2. Run `bin/sessionfold scan --deep --top 20` on the largest files.
 3. Explain total use, largest files, duplicate image bytes, and recent/open state.
 4. If the user asks to archive, select completed files explicitly and run
-   `bin/agent-coldstore archive <file>...` without source removal first.
+   `bin/sessionfold archive <file>...` without source removal first.
 5. Report the manifest path and verified status.
-6. Only after explicit authorization, use `--remove-source` for explicit files.
+6. Only after explicit authorization, use `reclaim MANIFEST --yes` so the
+   already-reviewed archive and exact source are verified again before removal.
 7. Use `verify` for a disk-light integrity check and `restore` to recover to a
    new path. Never overwrite an existing path.
 
 ## Commands
 
 ```bash
-bin/agent-coldstore scan [PATH ...] [--deep] [--top N] [--json]
-bin/agent-coldstore archive FILE ... [--store PATH] [--min-age-minutes N] [--remove-source]
-bin/agent-coldstore verify MANIFEST [--store PATH]
-bin/agent-coldstore restore MANIFEST --output PATH [--store PATH]
-bin/agent-coldstore list [--store PATH] [--json]
+bin/sessionfold scan [PATH ...] [--deep] [--top N] [--json]
+bin/sessionfold archive FILE ... [--store PATH] [--min-age-minutes N] [--remove-source]
+bin/sessionfold verify MANIFEST [--store PATH]
+bin/sessionfold reclaim MANIFEST --yes [--store PATH] [--min-age-minutes N]
+bin/sessionfold restore MANIFEST --output PATH [--store PATH]
+bin/sessionfold list [--store PATH] [--json]
 ```
 
-The default store is `~/.agent-coldstore`. Codex is discovered under
+The default store is `~/.sessionfold`. Codex is discovered under
 `${CODEX_HOME:-~/.codex}/sessions`; Claude Code under `~/.claude/projects`.

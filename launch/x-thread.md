@@ -12,7 +12,7 @@
 
 3. One closed 6.44 GB real session became 1.047 GB (83.75% smaller) in 21.63s at
    ~71 MB peak RSS. Three related sessions were 92.11% smaller together. These
-   are measurements from one pathological corpus—not universal savings.
+   are measurements from one pathological corpus:not universal savings.
 
 4. Alpha limitations: Codex/Claude Code JSONL formats can change; archives are
    not directly readable by those apps; the archive store is not encrypted.

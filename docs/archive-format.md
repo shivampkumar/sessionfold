@@ -1,6 +1,6 @@
 # Archive format v2
 
-An Agent Coldstore root contains two independent namespaces:
+An Sessionfold root contains two independent namespaces:
 
 ```text
 blobs/ab/abcdef...             # full SHA-256 as filename
@@ -34,6 +34,12 @@ digest, validates each unique blob, and compares both reconstructed size and
 hash with `source`. `verify` discards reconstructed bytes; `restore` writes to a
 temporary file, fsyncs it, and atomically renames it without overwriting an
 existing target.
+
+`reclaim` first performs that same logical reconstruction, then confirms the
+original path is a regular non-symlink file with the recorded size,
+modification time, and SHA-256. It also refuses recent or open files. The
+manifest records a pending removal marker before unlinking the source so an
+interrupted manifest update can be completed safely on the next run.
 
 The `store_root` field is advisory and can be overridden after relocation with
 `--store`. Schema v2 is not encrypted and has no garbage collector. Interrupted

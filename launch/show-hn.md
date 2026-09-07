@@ -4,13 +4,13 @@ Hacker News currently says not to post generated or AI-edited text. Do not paste
 this file into HN. Rewrite the facts and story in your own voice, and post only
 from an account eligible under the current Show HN restrictions.
 
-**Title:** Show HN: Agent Coldstore – lossless dedup for huge Codex histories
+**Title:** Show HN: Sessionfold – lossless dedup for huge Codex histories
 
 I found a pathological local Codex history corpus using 565.62 GiB. In its ten
 largest JSONL sessions, 98.17% of inline image bytes were duplicate payloads,
 mostly repeated through compaction and related histories.
 
-I built Agent Coldstore, an offline Python CLI that moves large inline images
+I built Sessionfold, an offline Python CLI that moves large inline images
 into a global SHA-256 content-addressed store while retaining a compressed thin
 transcript. It never rewrites an active session, deletion is disabled by
 default, and every archive is verified by reconstructing the logical original

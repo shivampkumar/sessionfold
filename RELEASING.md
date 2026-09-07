@@ -4,7 +4,7 @@ No step below should be skipped for a public release.
 
 ## 1. Preflight
 
-1. Confirm `agent-coldstore` remains available on PyPI, npm, and GitHub.
+1. Confirm `sessionfold` remains available on PyPI, npm, and GitHub.
 2. Choose the GitHub owner and add the exact repository URLs to `pyproject.toml`.
 3. Review every README benchmark claim against `experiments/`.
 4. Run the unit, compile, plugin, package, and clean-install checks.
@@ -26,7 +26,7 @@ No step below should be skipped for a public release.
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile agent_coldstore/cli.py scripts/hook_guard.py
+python3 -m py_compile sessionfold/cli.py scripts/hook_guard.py
 python3 -m build
 python3 -m twine check dist/*
 python3 scripts/build_plugin.py

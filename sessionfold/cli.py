@@ -26,7 +26,7 @@ BASE64_SEPARATOR = b";base64,"
 BASE64_BYTES = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n"
 MIN_IMAGE_URI_BYTES = 4096
 MAX_IMAGE_URI_BYTES = 64 * 1024 * 1024
-DEFAULT_STORE = Path.home() / ".agent-coldstore"
+DEFAULT_STORE = Path.home() / ".sessionfold"
 
 
 @dataclass(frozen=True)
@@ -587,6 +587,7 @@ def archive_file(
         manifest["verified"] = True
         manifest["archive_path"] = str(final_dir / "manifest.json")
         manifest["source_removed"] = False
+        manifest["source_removal_pending"] = False
         write_json_atomic(manifest_file, manifest)
         final_dir.parent.mkdir(parents=True, exist_ok=True)
         os.replace(temporary_dir, final_dir)
@@ -607,6 +608,9 @@ def archive_file(
                 )
             path.unlink()
             manifest["source_removed"] = True
+            manifest["source_removed_at"] = dt.datetime.now(
+                tz=dt.timezone.utc
+            ).isoformat()
             write_json_atomic(final_dir / "manifest.json", manifest)
         return manifest
     except Exception:
@@ -614,6 +618,119 @@ def archive_file(
         if final_dir is not None and not archive_verified:
             shutil.rmtree(final_dir, ignore_errors=True)
         raise
+
+
+def reclaim_source(
+    manifest_path: Path,
+    *,
+    store: Path | None = None,
+    min_age_minutes: int = 60,
+) -> dict:
+    """Remove one exact archived source after independently re-verifying it."""
+
+    manifest_path = manifest_path_from_input(manifest_path)
+    manifest = json.loads(manifest_path.read_text())
+    if manifest.get("verified") is not True:
+        raise RuntimeError("Archive is not marked verified; refusing source removal")
+
+    # Reconstruct and validate the logical source before considering deletion.
+    verify_archive(manifest_path, store=store)
+    if manifest.get("source_removed") is True:
+        return manifest
+
+    source_record = manifest.get("source")
+    if not isinstance(source_record, dict):
+        raise TypeError("Manifest has no valid source record")
+    source_value = source_record.get("path")
+    if not isinstance(source_value, str) or not source_value:
+        raise RuntimeError("Manifest has no valid source path")
+    source = Path(source_value).expanduser()
+
+    # A pending marker is written before unlink. If a process died after unlink,
+    # this branch safely finishes the manifest update without guessing.
+    if not source.exists():
+        if manifest.get("source_removal_pending") is True:
+            manifest["source_removal_pending"] = False
+            manifest["source_removed"] = True
+            manifest["source_removed_at"] = dt.datetime.now(
+                tz=dt.timezone.utc
+            ).isoformat()
+            write_json_atomic(manifest_path, manifest)
+            return manifest
+        raise FileNotFoundError(f"Archived source is missing: {source}")
+
+    if source.is_symlink() or not source.is_file():
+        raise RuntimeError(
+            f"Archived source is not a regular non-symlink file: {source}"
+        )
+
+    expected = source_record
+    before = source.stat()
+    expected_identity = (expected.get("size"), expected.get("mtime_ns"))
+    if (before.st_size, before.st_mtime_ns) != expected_identity:
+        raise RuntimeError("Archived source size or modification time has changed")
+    age_seconds = dt.datetime.now(dt.timezone.utc).timestamp() - before.st_mtime
+    if age_seconds < min_age_minutes * 60:
+        raise RuntimeError(
+            f"Refusing recent file {source}; age is {age_seconds / 60:.1f} minutes "
+            f"but minimum is {min_age_minutes}."
+        )
+    if open_by_process(source) is not False:
+        raise RuntimeError(
+            "Cannot safely remove source because it may be open or open-file "
+            "detection is unavailable"
+        )
+
+    expected_hash = expected.get("sha256")
+    if not isinstance(expected_hash, str) or hash_file(source) != expected_hash:
+        raise RuntimeError("Archived source SHA-256 has changed")
+
+    after = source.stat()
+    if (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ) != (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    ):
+        raise RuntimeError("Archived source changed during final verification")
+    if open_by_process(source) is not False:
+        raise RuntimeError("Archived source became open; refusing removal")
+
+    manifest["source_removal_pending"] = True
+    manifest["source_removal_requested_at"] = dt.datetime.now(
+        tz=dt.timezone.utc
+    ).isoformat()
+    write_json_atomic(manifest_path, manifest)
+    try:
+        final = source.stat()
+        if (
+            final.st_dev,
+            final.st_ino,
+            final.st_size,
+            final.st_mtime_ns,
+        ) != (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ):
+            raise RuntimeError("Archived source changed before removal")
+        source.unlink()
+    except Exception:
+        manifest["source_removal_pending"] = False
+        write_json_atomic(manifest_path, manifest)
+        raise
+
+    manifest["source_removal_pending"] = False
+    manifest["source_removed"] = True
+    manifest["source_removed_at"] = dt.datetime.now(tz=dt.timezone.utc).isoformat()
+    write_json_atomic(manifest_path, manifest)
+    return manifest
 
 
 def command_scan(args: argparse.Namespace) -> int:
@@ -726,6 +843,22 @@ def command_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_reclaim(args: argparse.Namespace) -> int:
+    if not args.yes:
+        raise RuntimeError(
+            "Reclaim requires --yes after you review the exact manifest and source path"
+        )
+    store = Path(args.store) if args.store else None
+    manifest = reclaim_source(
+        Path(args.manifest),
+        store=store,
+        min_age_minutes=args.min_age_minutes,
+    )
+    print(f"Removed archived source: {manifest['source']['path']}")
+    print(f"Verified archive remains: {manifest_path_from_input(Path(args.manifest))}")
+    return 0
+
+
 def command_list(args: argparse.Namespace) -> int:
     store = Path(args.store).expanduser().resolve()
     manifests = []
@@ -750,7 +883,7 @@ def command_list(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agent-coldstore",
+        prog="sessionfold",
         description="Audit and losslessly archive local AI agent session histories.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -799,6 +932,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     verify.set_defaults(func=command_verify)
 
+    reclaim = subparsers.add_parser(
+        "reclaim",
+        help="Re-verify one archive, then remove its exact original source",
+    )
+    reclaim.add_argument("manifest")
+    reclaim.add_argument(
+        "--store", help="Override the blob store recorded in the manifest"
+    )
+    reclaim.add_argument("--min-age-minutes", type=int, default=60)
+    reclaim.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm removal of the exact source path recorded in the manifest",
+    )
+    reclaim.set_defaults(func=command_reclaim)
+
     listing = subparsers.add_parser("list", help="List local archives")
     listing.add_argument("--store", default=str(DEFAULT_STORE))
     listing.add_argument("--json", action="store_true")
@@ -818,9 +967,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         FileExistsError,
         PermissionError,
         RuntimeError,
+        TypeError,
         ValueError,
     ) as error:
-        print(f"agent-coldstore: {error}", file=sys.stderr)
+        print(f"sessionfold: {error}", file=sys.stderr)
         return 2
 
 

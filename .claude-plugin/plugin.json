@@ -1,9 +1,9 @@
 {
-  "name": "agent-coldstore",
+  "name": "sessionfold",
   "version": "0.1.0",
-  "description": "Diagnose and safely archive oversized local agent session histories.",
+  "description": "Free disk space by safely storing repeated screenshots only once.",
   "author": {
-    "name": "Agent Coldstore contributors"
+    "name": "Shivam Kumar"
   },
   "license": "Apache-2.0",
   "keywords": ["sessions", "disk", "history", "codex", "claude-code"]

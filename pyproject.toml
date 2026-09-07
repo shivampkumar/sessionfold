@@ -3,13 +3,13 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-coldstore"
+name = "sessionfold"
 version = "0.1.0"
-description = "Lossless content-addressed cold storage for AI agent session histories"
+description = "Free disk space by storing repeated screenshots in agent histories only once"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-authors = [{name = "Agent Coldstore contributors"}]
+authors = [{name = "Shivam Kumar"}]
 keywords = ["codex", "claude-code", "agents", "sessions", "deduplication"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -21,11 +21,17 @@ classifiers = [
   "Topic :: System :: Archiving",
 ]
 
+[project.urls]
+Homepage = "https://github.com/shivampkumar/sessionfold"
+Repository = "https://github.com/shivampkumar/sessionfold"
+Issues = "https://github.com/shivampkumar/sessionfold/issues"
+Changelog = "https://github.com/shivampkumar/sessionfold/blob/main/CHANGELOG.md"
+
 [project.scripts]
-agent-coldstore = "agent_coldstore.cli:main"
+sessionfold = "sessionfold.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["agent_coldstore*"]
+include = ["sessionfold*"]
 
 [tool.ruff]
 target-version = "py310"

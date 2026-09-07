@@ -2,7 +2,7 @@
 
 ## Completed locally
 
-- 19 unit and fault-injection tests pass.
+- 23 unit and fault-injection tests pass.
 - Ruff lint and format checks pass.
 - Bandit reports no findings after review of the fixed `lsof` subprocess call.
 - Python byte-compilation passes.

@@ -1,6 +1,6 @@
 # Privacy
 
-Agent Coldstore is offline software. It has no telemetry, analytics, crash
+Sessionfold is offline software. It has no telemetry, analytics, crash
 reporting, update checker, or network client. It reads local transcript bytes
 only to count, hash, archive, verify, or restore them as explicitly requested.
 

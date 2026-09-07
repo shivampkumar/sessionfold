@@ -21,7 +21,7 @@ def main() -> int:
 
     try:
         size = Path(transcript).stat().st_size
-        threshold_gib = float(os.environ.get("AGENT_COLDSTORE_WARN_GIB", "2"))
+        threshold_gib = float(os.environ.get("SESSIONFOLD_WARN_GIB", "2"))
     except (OSError, ValueError):
         return 0
 
@@ -31,8 +31,8 @@ def main() -> int:
 
     size_gib = size / 1024**3
     warning = (
-        f"Agent Coldstore: this local transcript is {size_gib:.1f} GiB. "
-        "Run `agent-coldstore scan --deep` before disk pressure becomes critical. "
+        f"Sessionfold: this local transcript is {size_gib:.1f} GiB. "
+        "Run `sessionfold scan --deep` before disk pressure becomes critical. "
         "Do not manually rewrite an active transcript."
     )
     json.dump({"systemMessage": warning}, sys.stdout)
