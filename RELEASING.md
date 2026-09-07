@@ -38,7 +38,7 @@ current official Codex validator and install the ZIP in a disposable profile.
 
 ## 4. Ship
 
-1. Publish `0.1.0rc1` to TestPyPI and install it from TestPyPI on a clean host.
+1. Publish the release candidate to TestPyPI and install it from TestPyPI on a clean host.
 2. Make the repository public with security and privacy guidance visible.
 3. Tag the exact validated commit and build artifacts from that tag.
 4. Publish to PyPI using a project-scoped trusted publisher; do not store a

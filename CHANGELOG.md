@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 : unreleased
+## 0.1.0a1 : 2026-09-06
 
 - Add read-only Codex and Claude Code JSONL inventory.
 - Add bounded streaming detection of large inline image data URIs.
