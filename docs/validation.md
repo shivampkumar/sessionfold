@@ -24,14 +24,14 @@ from an empty store, an 83.7512% reduction. Archive plus full logical
 verification took 21.63 seconds with a 70,893,568-byte maximum resident set.
 The source was not modified. See `experiments/2026-09-06-feasibility.md`.
 
-## Prior release CI
+## CI
 
-- Version 0.1.0a1 passed GitHub Actions on Linux with Python 3.10, 3.12, and
-  3.14; macOS with Python 3.12; and Windows with Python 3.12.
+- Version 0.1.0a2 passed GitHub Actions on Linux with Python 3.10, 3.12, and
+  3.14; macOS with Python 3.12; and Windows with Python 3.12. Packaging, Ruff,
+  Bandit, wheel and source-distribution checks, and the plugin build also pass.
 
 ## Not yet complete
 
-- Version 0.1.0a2 CI is not complete yet.
 - Independent-user beta testing has not begun.
 - Full-disk, power-loss, filesystem-corruption, and true concurrent-process
   tests remain before source removal should leave experimental status.
