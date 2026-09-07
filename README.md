@@ -56,9 +56,11 @@ Sessionfold provides five operations:
 Requires Python 3.10 or newer and has no runtime Python dependencies.
 
 ```bash
-python3 -m pip install https://github.com/shivampkumar/sessionfold/releases/download/v0.1.0a2/sessionfold-0.1.0a2-py3-none-any.whl
+python3 -m pip install --pre sessionfold
 sessionfold scan
 ```
+
+The `--pre` flag is required while Sessionfold is published as an alpha.
 
 To install from a checkout:
 
