@@ -28,18 +28,19 @@ Sessionfold provides five operations:
   source named in the manifest after explicit confirmation.
 - `restore` recreates the original JSONL byte-for-byte at a new path.
 
-## Install from source
+## Install the alpha
 
 Requires Python 3.10 or newer and has no runtime Python dependencies.
 
 ```bash
-python3 -m pip install .
+python3 -m pip install https://github.com/shivampkumar/sessionfold/releases/download/v0.1.0a1/sessionfold-0.1.0a1-py3-none-any.whl
 sessionfold scan
 ```
 
-Without installing:
+To install from a checkout:
 
 ```bash
+python3 -m pip install .
 ./bin/sessionfold scan
 ```
 
