@@ -6,9 +6,11 @@ from an account eligible under the current Show HN restrictions.
 
 **Title:** Show HN: Sessionfold – lossless dedup for huge Codex histories
 
-I found a pathological local Codex history corpus using 565.62 GiB. In its ten
-largest JSONL sessions, 98.17% of inline image bytes were duplicate payloads,
-mostly repeated through compaction and related histories.
+About 20 days after buying a 1 TB Mac, I had 80 MB of free space left. I blamed
+my healthcare datasets. The real culprit was 565.62 GiB of local Codex history.
+My first reaction was basically, "what the shit?" In the ten largest JSONL
+sessions, 98.17% of inline image bytes were duplicate payloads, mostly repeated
+through compaction and related histories.
 
 I built Sessionfold, an offline Python CLI that moves large inline images
 into a global SHA-256 content-addressed store while retaining a compressed thin

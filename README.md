@@ -9,6 +9,23 @@ It does not upload telemetry or session data, display conversation content, or
 modify an active transcript. Scanning is read-only. Source removal is optional
 and occurs only after a full byte-exact reconstruction has been verified.
 
+## Why I built it
+
+I bought a 1 TB Mac, and about 20 days later it had 80 MB of free space left. I
+assumed the healthcare datasets I had been working with were responsible. After
+some debugging, my agent reported:
+
+> The main culprit is not the healthcare data: `~/.codex/sessions` is about 566
+> GiB, mostly individual rollout JSONL files of roughly 5 to 6 GiB each from
+> September 3 to 5.
+
+My reaction was basically, "what the shit?"
+
+Those histories contained screenshots copied into JSONL as base64. Compaction
+and related sessions had repeated many of the same images thousands of times.
+I wanted the disk space back without blindly deleting my work or trusting a
+lossy cleanup script. That became Sessionfold.
+
 ## Why it exists
 
 Screenshot-heavy agent sessions can embed base64 images directly in JSONL.
