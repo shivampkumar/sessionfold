@@ -1,0 +1,10 @@
+{
+  "name": "agent-coldstore",
+  "version": "0.1.0",
+  "description": "Diagnose and safely archive oversized local agent session histories.",
+  "author": {
+    "name": "Agent Coldstore contributors"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["sessions", "disk", "history", "codex", "claude-code"]
+}

@@ -1,0 +1,263 @@
+from __future__ import annotations
+
+import importlib.util
+import io
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+SCRIPT = Path(__file__).parents[1] / "agent_coldstore" / "cli.py"
+SPEC = importlib.util.spec_from_file_location("agent_coldstore_cli", SCRIPT)
+assert SPEC and SPEC.loader
+agent_coldstore = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = agent_coldstore
+SPEC.loader.exec_module(agent_coldstore)
+
+
+class AgentColdstoreTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.store = self.root / "store"
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def make_session(self) -> tuple[Path, bytes]:
+        image_a = b"data:image/png;base64," + (b"QUJD" * 2000)
+        image_b = b"data:image/jpeg;base64," + (b"REVG" * 1600)
+        content = (
+            b"\n".join(
+                [
+                    b'{"type":"message","image_url":"' + image_a + b'"}',
+                    b'{"type":"compacted","replacement_history":[{"image_url":"'
+                    + image_a
+                    + b'"}]}',
+                    b'{"type":"tool","image_url":"' + image_b + b'"}',
+                    b'{"type":"compacted","replacement_history":[{"image_url":"'
+                    + image_a
+                    + b'"}]}',
+                    b'{"type":"message","text":"asd:v1:sha256:' + (b"a" * 64) + b'"}',
+                ]
+            )
+            + b"\n"
+        )
+        path = self.root / "rollout-test.jsonl"
+        path.write_bytes(content)
+        return path, content
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_deep_scan_counts_duplicate_images(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        report, digests = agent_coldstore.analyze_file(
+            path, deep=True, recent_minutes=30
+        )
+        self.assertEqual(report.image_occurrences, 4)
+        self.assertEqual(len(digests), 2)
+        self.assertGreater(report.duplicate_image_bytes or 0, 0)
+        self.assertEqual(report.replacement_history_records, 2)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_archive_and_restore_are_byte_exact(self, _open: mock.Mock) -> None:
+        path, original = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        self.assertTrue(manifest["verified"])
+        self.assertTrue(path.exists())
+        self.assertEqual(manifest["images"]["unique_blobs"], 2)
+        restored = self.root / "restored.jsonl"
+        agent_coldstore.restore_stream(Path(manifest["archive_path"]), restored)
+        self.assertEqual(restored.read_bytes(), original)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_second_archive_reuses_global_blobs(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        first = agent_coldstore.archive_file(path, self.store, 0, False)
+        second = agent_coldstore.archive_file(path, self.store, 0, False)
+        self.assertGreater(first["images"]["new_blob_bytes"], 0)
+        self.assertEqual(second["images"]["new_blob_bytes"], 0)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_relocated_store_can_be_overridden(self, _open: mock.Mock) -> None:
+        path, original = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        archive_id = manifest["archive_id"]
+        relocated = self.root / "relocated-store"
+        self.store.rename(relocated)
+        relocated_manifest = relocated / "archives" / archive_id / "manifest.json"
+        verified = agent_coldstore.verify_archive(relocated_manifest, store=relocated)
+        self.assertEqual(verified["source"]["size"], len(original))
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_remove_source_requires_explicit_flag_and_verification(
+        self, _open: mock.Mock
+    ) -> None:
+        path, original = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, True)
+        self.assertFalse(path.exists())
+        self.assertTrue(manifest["source_removed"])
+        restored = self.root / "restored.jsonl"
+        agent_coldstore.restore_stream(Path(manifest["archive_path"]), restored)
+        self.assertEqual(restored.read_bytes(), original)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_recent_file_is_refused(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        with self.assertRaisesRegex(RuntimeError, "Refusing recent file"):
+            agent_coldstore.archive_file(path, self.store, 60, False)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=True)
+    def test_open_file_is_refused(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        old = path.stat().st_mtime - 7200
+        os.utime(path, (old, old))
+        with self.assertRaisesRegex(RuntimeError, "open by another process"):
+            agent_coldstore.archive_file(path, self.store, 60, False)
+
+    def test_hook_warns_without_reading_transcript(self) -> None:
+        path = self.root / "large.jsonl"
+        path.write_bytes(b"{}\n")
+        hook = Path(__file__).parents[1] / "scripts" / "hook_guard.py"
+        event = json.dumps(
+            {"transcript_path": str(path), "hook_event_name": "PostCompact"}
+        )
+        result = subprocess.run(
+            [sys.executable, str(hook)],
+            input=event,
+            text=True,
+            capture_output=True,
+            env={**os.environ, "AGENT_COLDSTORE_WARN_GIB": "0"},
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Agent Coldstore", json.loads(result.stdout)["systemMessage"])
+
+    def test_parser_handles_markers_across_tiny_chunks(self) -> None:
+        image = b"data:image/png;base64," + (b"QUJD" * 8)
+        raw = b'prefix:"' + image + b'":suffix'
+        with mock.patch.object(agent_coldstore, "CHUNK_SIZE", 7):
+            parts = list(
+                agent_coldstore.iter_session_parts(
+                    io.BytesIO(raw), min_image_bytes=1, max_image_bytes=1024
+                )
+            )
+        self.assertEqual(b"".join(part.data for part in parts), raw)
+        self.assertEqual(sum(part.is_image for part in parts), 1)
+
+    def test_marker_counter_handles_chunk_boundaries(self) -> None:
+        counter = agent_coldstore.StreamingMarkerCounter(b"replacement_history")
+        counter.update(b"xxreplace")
+        counter.update(b"ment_historyyyreplacement_")
+        counter.update(b"historyzz")
+        self.assertEqual(counter.finish(), 2)
+
+    def test_oversized_image_candidate_is_refused(self) -> None:
+        raw = b"data:image/png;base64," + (b"A" * 100) + b'"'
+        with self.assertRaisesRegex(RuntimeError, "exceeds safety limit"):
+            list(
+                agent_coldstore.iter_session_parts(
+                    io.BytesIO(raw), min_image_bytes=1, max_image_bytes=32
+                )
+            )
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_corrupt_blob_prevents_restore(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        digest = manifest["images"]["sequence"][0]["sha256"]
+        blob = self.store / "blobs" / digest[:2] / digest
+        blob.write_bytes(b"corrupt")
+        restored = self.root / "corrupt-restore.jsonl"
+        with self.assertRaisesRegex(RuntimeError, "Blob size mismatch"):
+            agent_coldstore.restore_stream(Path(manifest["archive_path"]), restored)
+        self.assertFalse(restored.exists())
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_verify_does_not_materialize_restored_file(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        verified = agent_coldstore.verify_archive(Path(manifest["archive_path"]))
+        self.assertEqual(verified["source"]["sha256"], agent_coldstore.hash_file(path))
+        self.assertEqual(list(self.store.rglob("restored.jsonl")), [])
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_nonmonotonic_manifest_is_refused(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        manifest_path = Path(manifest["archive_path"])
+        payload = json.loads(manifest_path.read_text())
+        payload["images"]["sequence"][1]["offset"] = -1
+        manifest_path.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(RuntimeError, "non-monotonic"):
+            agent_coldstore.verify_archive(manifest_path)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_manifest_path_traversal_is_refused(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        manifest_path = Path(manifest["archive_path"])
+        payload = json.loads(manifest_path.read_text())
+        payload["thin"]["path"] = "../transcript.thin.jsonl.gz"
+        manifest_path.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(RuntimeError, "Invalid thin transcript path"):
+            agent_coldstore.verify_archive(manifest_path)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_failed_verification_removes_incomplete_archive(
+        self, _open: mock.Mock
+    ) -> None:
+        path, _ = self.make_session()
+        with (
+            mock.patch.object(
+                agent_coldstore,
+                "verify_archive",
+                side_effect=RuntimeError("injected failure"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "injected failure"),
+        ):
+            agent_coldstore.archive_file(path, self.store, 0, False)
+        self.assertEqual(list((self.store / "archives").glob("*/manifest.json")), [])
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_source_mutation_during_archive_is_refused(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        original_iterator = agent_coldstore.iter_session_parts
+
+        def mutating_iterator(source: object, **kwargs: object):
+            for index, part in enumerate(original_iterator(source, **kwargs)):
+                yield part
+                if index == 0:
+                    with path.open("ab") as changed:
+                        changed.write(b"mutation")
+
+        with (
+            mock.patch.object(agent_coldstore, "iter_session_parts", mutating_iterator),
+            self.assertRaisesRegex(RuntimeError, "Source changed while archiving"),
+        ):
+            agent_coldstore.archive_file(path, self.store, 0, False)
+        self.assertEqual(list((self.store / "archives").glob("*/manifest.json")), [])
+
+    def test_archive_refuses_symlink_source(self) -> None:
+        path, _ = self.make_session()
+        link = self.root / "linked.jsonl"
+        link.symlink_to(path)
+        with self.assertRaisesRegex(ValueError, "non-symlink"):
+            agent_coldstore.archive_file(link, self.store, 0, False)
+
+    @mock.patch.object(agent_coldstore, "open_by_process", return_value=False)
+    def test_restore_refuses_existing_target(self, _open: mock.Mock) -> None:
+        path, _ = self.make_session()
+        manifest = agent_coldstore.archive_file(path, self.store, 0, False)
+        restored = self.root / "existing.jsonl"
+        restored.write_bytes(b"keep")
+        with self.assertRaises(FileExistsError):
+            agent_coldstore.restore_stream(Path(manifest["archive_path"]), restored)
+        self.assertEqual(restored.read_bytes(), b"keep")
+
+
+if __name__ == "__main__":
+    unittest.main()

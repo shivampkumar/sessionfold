@@ -1,0 +1,24 @@
+{
+  "name": "agent-coldstore",
+  "version": "0.1.0",
+  "description": "Diagnose and safely archive oversized local agent session histories.",
+  "author": {
+    "name": "Agent Coldstore contributors"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["sessions", "disk", "history", "codex", "claude-code"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Coldstore",
+    "shortDescription": "Find and safely archive oversized agent histories.",
+    "longDescription": "Agent Coldstore audits local Codex and Claude Code session storage without displaying conversation content, identifies duplicated inline images, and creates verified, reversible archives.",
+    "developerName": "Agent Coldstore contributors",
+    "category": "Productivity",
+    "capabilities": ["Analyze local session storage"],
+    "defaultPrompt": [
+      "Check how much disk space my agent histories use.",
+      "Find duplicated images in my largest sessions.",
+      "Safely archive completed oversized sessions."
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "description": "Warn when a local agent transcript becomes unusually large.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_guard.py\"",
+            "timeout": 3,
+            "statusMessage": "Checking session history size"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hook_guard.py\"",
+            "timeout": 3,
+            "statusMessage": "Checking compacted history size"
+          }
+        ]
+      }
+    ]
+  }
+}

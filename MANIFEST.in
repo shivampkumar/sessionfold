@@ -1,0 +1,9 @@
+include LICENSE
+include README.md
+include SECURITY.md
+include PRIVACY.md
+include CHANGELOG.md
+include RELEASING.md
+recursive-include docs *.md
+recursive-include experiments *.md
+recursive-include tests *.py
