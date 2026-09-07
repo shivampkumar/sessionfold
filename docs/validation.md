@@ -1,4 +1,4 @@
-# Validation record for 0.1.0a2
+# Validation record for 0.1.0a3
 
 ## Completed locally
 
@@ -32,6 +32,7 @@ The source was not modified. See `experiments/2026-09-06-feasibility.md`.
 
 ## Not yet complete
 
+- Version 0.1.0a3 CI is not complete yet.
 - Independent-user beta testing has not begun.
 - Full-disk, power-loss, filesystem-corruption, and true concurrent-process
   tests remain before source removal should leave experimental status.

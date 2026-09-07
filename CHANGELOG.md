@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0a3 : 2026-09-07
+
+- Put the cold-storage and Codex usability contract at the top of the README.
+- Clarify that archiving alone leaves chats usable but does not reclaim their
+  original bytes.
+- Clarify that reclaiming an original can hide the chat from Codex and that
+  automatic Codex UI reintegration after restore is not yet validated.
+
 ## 0.1.0a2 : 2026-09-06
 
 - Route one-command source removal through the same second reconstruction,

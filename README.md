@@ -11,6 +11,22 @@ It does not upload telemetry or session data, display conversation content, or
 modify an active transcript. Scanning is read-only. Source removal is optional
 and occurs only after a full byte-exact reconstruction has been verified.
 
+## Important: this is cold storage
+
+Sessionfold is not transparent compression inside Codex.
+
+- `archive` leaves the original JSONL untouched, so the chat remains available
+  in Codex. This creates the verified cold-storage copy but does not reclaim the
+  original file's bytes.
+- `reclaim` removes that original JSONL after verification. This recovers disk
+  space, but the chat may disappear from Codex and may not be resumable there.
+- `restore` recreates the original JSONL byte for byte. Sessionfold verifies the
+  restored file, but automatic reintegration into the Codex sidebar has not yet
+  been validated.
+
+If every chat must remain immediately usable in Codex, use `scan`, `archive`,
+and `verify`, then stop before `reclaim`.
+
 ## Why I built it
 
 I bought a 1 TB Mac, and about 20 days later it had 80 MB of free space left. I

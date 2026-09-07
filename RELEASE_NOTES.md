@@ -1,4 +1,4 @@
-# Sessionfold 0.1.0a2
+# Sessionfold 0.1.0a3
 
 This started when my 20-day-old 1 TB Mac reached 80 MB of free space. I blamed
 the healthcare datasets I was working with, but the real culprit was about 566
@@ -29,6 +29,8 @@ The first archive needs additional free space. If a drive is already critically
 full, put the archive on an external volume with `--store`. Codex is the
 validated target. Claude Code support is experimental in this alpha.
 
-Version 0.1.0a2 also routes one-command removal through the same independent
-reconstruction, source-hash verification, open-file check, and removal journal
-used by the separate `reclaim` command.
+Version 0.1.0a3 makes the cold-storage contract prominent: `archive` leaves the
+original and its Codex usability unchanged, while `reclaim` recovers space by
+removing the original JSONL. A reclaimed chat may disappear from Codex.
+Sessionfold guarantees byte-exact file restoration, but automatic reintegration
+into the Codex sidebar is not yet validated.
