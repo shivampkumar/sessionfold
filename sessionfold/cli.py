@@ -494,7 +494,9 @@ def archive_file(
     if not path.is_file() or path.suffix != ".jsonl":
         raise ValueError(f"Expected a regular, non-symlink JSONL file: {path}")
     before = path.stat()
-    age_seconds = dt.datetime.now(dt.timezone.utc).timestamp() - before.st_mtime
+    age_seconds = max(
+        0.0, dt.datetime.now(dt.timezone.utc).timestamp() - before.st_mtime
+    )
     if age_seconds < min_age_minutes * 60:
         raise RuntimeError(
             f"Refusing recent file {path}; age is {age_seconds / 60:.1f} minutes "
@@ -669,7 +671,9 @@ def reclaim_source(
     expected_identity = (expected.get("size"), expected.get("mtime_ns"))
     if (before.st_size, before.st_mtime_ns) != expected_identity:
         raise RuntimeError("Archived source size or modification time has changed")
-    age_seconds = dt.datetime.now(dt.timezone.utc).timestamp() - before.st_mtime
+    age_seconds = max(
+        0.0, dt.datetime.now(dt.timezone.utc).timestamp() - before.st_mtime
+    )
     if age_seconds < min_age_minutes * 60:
         raise RuntimeError(
             f"Refusing recent file {source}; age is {age_seconds / 60:.1f} minutes "
