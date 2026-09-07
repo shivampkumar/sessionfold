@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-OUTPUT = DIST / "sessionfold-plugin-0.1.0-a1.zip"
+OUTPUT = DIST / "sessionfold-plugin-0.1.0-a2.zip"
 INCLUDE = (
     ROOT / ".codex-plugin" / "plugin.json",
     ROOT / ".claude-plugin" / "plugin.json",

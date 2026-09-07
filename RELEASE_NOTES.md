@@ -1,4 +1,4 @@
-# Sessionfold 0.1.0a1
+# Sessionfold 0.1.0a2
 
 This started when my 20-day-old 1 TB Mac reached 80 MB of free space. I blamed
 the healthcare datasets I was working with, but the real culprit was about 566
@@ -10,7 +10,7 @@ Sessionfold helps recover disk space from large Codex and Claude Code history
 files. It finds repeated inline screenshots, stores each unique image once, and
 keeps enough information to restore the original JSONL file byte for byte.
 
-This first alpha includes:
+This alpha includes:
 
 - read-only scanning and duplicate estimates;
 - streaming archives with a shared SHA-256 content store;
@@ -22,3 +22,11 @@ This first alpha includes:
 The tool has no telemetry or network client. Source removal is off by default.
 This is an alpha because agent transcript formats can change and independent
 user testing has not started yet.
+
+The first archive needs additional free space. If a drive is already critically
+full, put the archive on an external volume with `--store`. Codex is the
+validated target. Claude Code support is experimental in this alpha.
+
+Version 0.1.0a2 also routes one-command removal through the same independent
+reconstruction, source-hash verification, open-file check, and removal journal
+used by the separate `reclaim` command.

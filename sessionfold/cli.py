@@ -596,24 +596,11 @@ def archive_file(
         archive_verified = True
 
         if remove_source:
-            current = path.stat()
-            if (before.st_size, before.st_mtime_ns) != (
-                current.st_size,
-                current.st_mtime_ns,
-            ):
-                raise RuntimeError(
-                    "Source changed after verification; refusing removal"
-                )
-            if open_by_process(path) is not False:
-                raise RuntimeError(
-                    "Source may be open after verification; refusing removal"
-                )
-            path.unlink()
-            manifest["source_removed"] = True
-            manifest["source_removed_at"] = dt.datetime.now(
-                tz=dt.timezone.utc
-            ).isoformat()
-            write_json_atomic(final_dir / "manifest.json", manifest)
+            return reclaim_source(
+                final_dir / "manifest.json",
+                store=store,
+                min_age_minutes=min_age_minutes,
+            )
         return manifest
     except Exception:
         shutil.rmtree(temporary_dir, ignore_errors=True)

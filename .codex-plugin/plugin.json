@@ -1,6 +1,6 @@
 {
   "name": "sessionfold",
-  "version": "0.1.0-a1",
+  "version": "0.1.0-a2",
   "description": "Free disk space by safely storing repeated screenshots only once.",
   "author": {
     "name": "Shivam Kumar"
@@ -11,7 +11,7 @@
   "interface": {
     "displayName": "Sessionfold",
     "shortDescription": "Safely shrink oversized agent histories.",
-    "longDescription": "Sessionfold finds repeated screenshots in local Codex and Claude Code histories, stores each one only once, and verifies that every archived session can be restored byte for byte.",
+    "longDescription": "Sessionfold finds repeated screenshots in local Codex histories, stores each one only once, and verifies that every archived session can be restored byte for byte. Claude Code discovery is experimental.",
     "developerName": "Shivam Kumar",
     "category": "Productivity",
     "capabilities": ["Analyze local session storage"],

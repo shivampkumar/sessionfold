@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 import os
+import random
 import subprocess
 import sys
 import tempfile
@@ -95,7 +96,12 @@ class SessionfoldTests(unittest.TestCase):
         self, _open: mock.Mock
     ) -> None:
         path, original = self.make_session()
-        manifest = sessionfold.archive_file(path, self.store, 0, True)
+        original_verify = sessionfold.verify_archive
+        with mock.patch.object(
+            sessionfold, "verify_archive", wraps=original_verify
+        ) as verify:
+            manifest = sessionfold.archive_file(path, self.store, 0, True)
+        self.assertEqual(verify.call_count, 2)
         self.assertFalse(path.exists())
         self.assertTrue(manifest["source_removed"])
         restored = self.root / "restored.jsonl"
@@ -198,6 +204,33 @@ class SessionfoldTests(unittest.TestCase):
         self.assertEqual(b"".join(part.data for part in parts), raw)
         self.assertEqual(sum(part.is_image for part in parts), 1)
 
+    def test_parser_roundtrips_randomized_chunk_boundaries(self) -> None:
+        rng = random.Random(20260906)
+        for case in range(100):
+            pieces: list[bytes] = []
+            expected_images = 0
+            for index in range(rng.randint(1, 12)):
+                pieces.append(f'{{"case":{case},"part":{index},"value":"'.encode())
+                if rng.choice((True, False)):
+                    pieces.append(
+                        b"data:image/png;base64," + b"QUJD" * rng.randint(1, 40)
+                    )
+                    expected_images += 1
+                else:
+                    pieces.append(
+                        b"data:image/png;base64," + b"QUJD%" * rng.randint(1, 12)
+                    )
+                pieces.append(b'"}\n')
+            raw = b"".join(pieces)
+            with mock.patch.object(sessionfold, "CHUNK_SIZE", rng.randint(1, 37)):
+                parts = list(
+                    sessionfold.iter_session_parts(
+                        io.BytesIO(raw), min_image_bytes=1, max_image_bytes=4096
+                    )
+                )
+            self.assertEqual(b"".join(part.data for part in parts), raw)
+            self.assertEqual(sum(part.is_image for part in parts), expected_images)
+
     def test_marker_counter_handles_chunk_boundaries(self) -> None:
         counter = sessionfold.StreamingMarkerCounter(b"replacement_history")
         counter.update(b"xxreplace")
@@ -225,6 +258,33 @@ class SessionfoldTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Blob size mismatch"):
             sessionfold.restore_stream(Path(manifest["archive_path"]), restored)
         self.assertFalse(restored.exists())
+        self.assertEqual(list(self.root.glob(f".{restored.name}.*.tmp")), [])
+
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_session_without_images_roundtrips(self, _open: mock.Mock) -> None:
+        original = b'{"type":"message","text":"plain text only"}\n'
+        path = self.root / "plain.jsonl"
+        path.write_bytes(original)
+        manifest = sessionfold.archive_file(path, self.store, 0, False)
+        self.assertEqual(manifest["images"]["occurrences"], 0)
+        restored = self.root / "plain-restored.jsonl"
+        sessionfold.restore_stream(Path(manifest["archive_path"]), restored)
+        self.assertEqual(restored.read_bytes(), original)
+
+    @mock.patch.object(sessionfold, "open_by_process", return_value=False)
+    def test_pending_removal_marker_recovers_after_unlink(
+        self, _open: mock.Mock
+    ) -> None:
+        path, _ = self.make_session()
+        manifest = sessionfold.archive_file(path, self.store, 0, False)
+        manifest_path = Path(manifest["archive_path"])
+        payload = json.loads(manifest_path.read_text())
+        payload["source_removal_pending"] = True
+        sessionfold.write_json_atomic(manifest_path, payload)
+        path.unlink()
+        recovered = sessionfold.reclaim_source(manifest_path, min_age_minutes=0)
+        self.assertTrue(recovered["source_removed"])
+        self.assertFalse(recovered["source_removal_pending"])
 
     @mock.patch.object(sessionfold, "open_by_process", return_value=False)
     def test_verify_does_not_materialize_restored_file(self, _open: mock.Mock) -> None:

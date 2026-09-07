@@ -1,6 +1,6 @@
 {
   "name": "sessionfold",
-  "version": "0.1.0-a1",
+  "version": "0.1.0-a2",
   "description": "Free disk space by safely storing repeated screenshots only once.",
   "author": {
     "name": "Shivam Kumar"
