@@ -26,13 +26,12 @@ The source was not modified. See `experiments/2026-09-06-feasibility.md`.
 
 ## CI
 
-- Version 0.1.0a2 passed GitHub Actions on Linux with Python 3.10, 3.12, and
+- Version 0.1.0a3 passed GitHub Actions on Linux with Python 3.10, 3.12, and
   3.14; macOS with Python 3.12; and Windows with Python 3.12. Packaging, Ruff,
   Bandit, wheel and source-distribution checks, and the plugin build also pass.
 
 ## Not yet complete
 
-- Version 0.1.0a3 CI is not complete yet.
 - Independent-user beta testing has not begun.
 - Full-disk, power-loss, filesystem-corruption, and true concurrent-process
   tests remain before source removal should leave experimental status.
