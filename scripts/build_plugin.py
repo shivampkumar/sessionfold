@@ -9,16 +9,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-OUTPUT = DIST / "sessionfold-plugin-0.1.0-a3.zip"
+OUTPUT = DIST / "sessionfold-plugin-0.1.0-a4.zip"
 INCLUDE = (
     ROOT / ".codex-plugin" / "plugin.json",
-    ROOT / ".claude-plugin" / "plugin.json",
     ROOT / "sessionfold" / "__init__.py",
     ROOT / "sessionfold" / "__main__.py",
     ROOT / "sessionfold" / "cli.py",
     ROOT / "bin" / "sessionfold",
-    ROOT / "hooks" / "hooks.json",
-    ROOT / "scripts" / "hook_guard.py",
     ROOT / "skills" / "sessionfold" / "SKILL.md",
     ROOT / "README.md",
     ROOT / "SECURITY.md",

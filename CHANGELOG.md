@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0a4 : 2026-09-07
+
+- State prominently that the current alpha supports Codex only.
+- Remove Claude Code from automatic discovery and the plugin bundle because its
+  usual base64 image-block representation is not yet supported.
+- Keep explicit-path archival generic, but do not claim compatibility with
+  unvalidated transcript formats.
+
 ## 0.1.0a3 : 2026-09-07
 
 - Put the cold-storage and Codex usability contract at the top of the README.

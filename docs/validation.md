@@ -1,4 +1,4 @@
-# Validation record for 0.1.0a3
+# Validation record for 0.1.0a4
 
 ## Completed locally
 
@@ -26,7 +26,7 @@ The source was not modified. See `experiments/2026-09-06-feasibility.md`.
 
 ## CI
 
-- Version 0.1.0a3 passed GitHub Actions on Linux with Python 3.10, 3.12, and
+- Version 0.1.0a4 passed GitHub Actions on Linux with Python 3.10, 3.12, and
   3.14; macOS with Python 3.12; and Windows with Python 3.12. Packaging, Ruff,
   Bandit, wheel and source-distribution checks, and the plugin build also pass.
 

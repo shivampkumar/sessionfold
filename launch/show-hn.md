@@ -27,8 +27,9 @@ a claim about typical histories.
 
 It has no telemetry or network client and intentionally does not summarize,
 redact, or optimize live context. The narrow goal is recoverable cold storage.
-The alpha supports quoted `data:image/*;base64,...` values in Codex and Claude
-Code JSONL; vendor formats are unstable, so format drift is an explicit risk.
+The alpha supports quoted `data:image/*;base64,...` values in Codex JSONL.
+Claude Code uses a different image representation and is not supported. Codex
+owns its transcript format, so format drift remains an explicit risk.
 
 I would particularly value adversarial feedback about crash consistency,
 cross-platform open-file detection, and cases where a transcript restores

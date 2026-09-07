@@ -14,6 +14,7 @@
    ~71 MB peak RSS. Three related sessions were 92.11% smaller together. These
    are measurements from one pathological corpus, not universal savings.
 
-4. Alpha limitations: Codex/Claude Code JSONL formats can change; archives are
-   not directly readable by those apps; the archive store is not encrypted.
-   Looking for testers who care about crash safety and byte-exact recovery.
+4. Alpha limitations: this release supports Codex only; Codex JSONL can change;
+   archives are not directly readable by Codex; the archive store is not
+   encrypted. Looking for testers who care about crash safety and byte-exact
+   recovery.

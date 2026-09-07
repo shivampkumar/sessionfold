@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sessionfold"
-version = "0.1.0a3"
-description = "Free disk space by storing repeated screenshots in agent histories only once"
+version = "0.1.0a4"
+description = "Free disk space by storing repeated screenshots in Codex histories only once"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{name = "Shivam Kumar"}]
-keywords = ["codex", "claude-code", "agents", "sessions", "deduplication"]
+keywords = ["codex", "agents", "sessions", "deduplication"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

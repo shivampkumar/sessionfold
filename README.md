@@ -3,9 +3,10 @@
 Sessionfold is a local-first disk safety tool for Codex histories. It finds
 oversized JSONL sessions and creates lossless, content-addressed archives in
 which identical inline images are stored once across every archived session.
-Claude Code discovery is included, but its archive support is still
-experimental because my measured Claude histories did not contain this kind of
-inline-image bloat.
+
+**The current alpha supports Codex only. It does not support Claude Code.**
+Claude Code normally stores image blocks in a different JSON representation,
+which Sessionfold does not currently deduplicate.
 
 It does not upload telemetry or session data, display conversation content, or
 modify an active transcript. Scanning is read-only. Source removal is optional
@@ -120,7 +121,6 @@ it is restored.
 ## Defaults and scope
 
 - Codex discovery: `${CODEX_HOME:-~/.codex}/sessions`
-- Claude Code discovery: `~/.claude/projects`
 - Archive store: `~/.sessionfold`
 - Inline image candidates: 4 KiB to 64 MiB each
 
@@ -134,9 +134,9 @@ sessionfold archive /path/to/completed.jsonl --store /Volumes/External/sessionfo
 The initial archive format targets JSONL transcripts containing quoted
 `data:image/*;base64,...` values. Unknown or small data URIs remain inline.
 Transcript formats are vendor-owned and unstable, so compatibility must be
-tested as they evolve. Sessionfold is archival storage; Codex and Claude Code
-do not read its archive format directly. Codex is the validated target in this
-alpha. Claude Code support should be treated as experimental.
+tested as they evolve. Sessionfold is archival storage and Codex does not read
+its archive format directly. Codex is the only supported target in this alpha.
+Do not use Sessionfold to reclaim Claude Code histories.
 
 If an archive store is relocated, pass its new root with `--store` to `verify`
 or `restore`.
@@ -170,17 +170,15 @@ or `restore`.
 
 See [SECURITY.md](SECURITY.md) and [PRIVACY.md](PRIVACY.md).
 
-## Optional plugins
+## Optional Codex plugin
 
-The repository includes Codex and Claude Code plugin manifests plus a shared
-skill and warning hook. The hook only stats the current transcript and emits a
-warning above a configurable threshold; it never archives or deletes.
+The repository includes a Codex plugin manifest and a safety-focused skill.
 
 ## Development
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile sessionfold/cli.py scripts/hook_guard.py
+python3 -m py_compile sessionfold/cli.py
 python3 -m build
 ```
 

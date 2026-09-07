@@ -5,7 +5,6 @@ import io
 import json
 import os
 import random
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -174,24 +173,6 @@ class SessionfoldTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "open by another process"):
             sessionfold.archive_file(path, self.store, 60, False)
 
-    def test_hook_warns_without_reading_transcript(self) -> None:
-        path = self.root / "large.jsonl"
-        path.write_bytes(b"{}\n")
-        hook = Path(__file__).parents[1] / "scripts" / "hook_guard.py"
-        event = json.dumps(
-            {"transcript_path": str(path), "hook_event_name": "PostCompact"}
-        )
-        result = subprocess.run(
-            [sys.executable, str(hook)],
-            input=event,
-            text=True,
-            capture_output=True,
-            env={**os.environ, "SESSIONFOLD_WARN_GIB": "0"},
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("Sessionfold", json.loads(result.stdout)["systemMessage"])
-
     def test_parser_handles_markers_across_tiny_chunks(self) -> None:
         image = b"data:image/png;base64," + (b"QUJD" * 8)
         raw = b'prefix:"' + image + b'":suffix'
@@ -357,6 +338,13 @@ class SessionfoldTests(unittest.TestCase):
         link.symlink_to(path)
         with self.assertRaisesRegex(ValueError, "non-symlink"):
             sessionfold.archive_file(link, self.store, 0, False)
+
+    def test_archive_refuses_claude_code_transcript(self) -> None:
+        path = self.root / ".claude" / "projects" / "session.jsonl"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"{}\n")
+        with self.assertRaisesRegex(RuntimeError, "Claude Code transcripts"):
+            sessionfold.archive_file(path, self.store, 0, False)
 
     @mock.patch.object(sessionfold, "open_by_process", return_value=False)
     def test_restore_refuses_existing_target(self, _open: mock.Mock) -> None:

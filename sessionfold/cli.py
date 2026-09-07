@@ -103,7 +103,7 @@ def human_bytes(value: int | None) -> str:
 
 def default_roots() -> list[Path]:
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    candidates = [codex_home / "sessions", Path.home() / ".claude" / "projects"]
+    candidates = [codex_home / "sessions"]
     return [path for path in candidates if path.exists()]
 
 
@@ -493,6 +493,11 @@ def archive_file(
     path = requested_path.resolve()
     if not path.is_file() or path.suffix != ".jsonl":
         raise ValueError(f"Expected a regular, non-symlink JSONL file: {path}")
+    if detect_tool(path) == "claude-code":
+        raise RuntimeError(
+            "Claude Code transcripts are not supported by this release; "
+            "refusing to archive"
+        )
     before = path.stat()
     age_seconds = max(
         0.0, dt.datetime.now(dt.timezone.utc).timestamp() - before.st_mtime
@@ -883,7 +888,7 @@ def build_parser() -> argparse.ArgumentParser:
         "scan", aliases=["doctor"], help="Read-only session inventory"
     )
     scan.add_argument(
-        "paths", nargs="*", help="Files or roots; defaults to Codex and Claude roots"
+        "paths", nargs="*", help="Files or roots; defaults to the Codex session root"
     )
     scan.add_argument(
         "--deep", action="store_true", help="Hash inline images in the largest files"

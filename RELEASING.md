@@ -26,7 +26,7 @@ No step below should be skipped for a public release.
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile sessionfold/cli.py scripts/hook_guard.py
+python3 -m py_compile sessionfold/cli.py
 python3 -m build
 python3 -m twine check dist/*
 python3 scripts/build_plugin.py

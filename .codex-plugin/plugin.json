@@ -1,17 +1,17 @@
 {
   "name": "sessionfold",
-  "version": "0.1.0-a3",
+  "version": "0.1.0-a4",
   "description": "Cold-archive completed Codex histories with byte-exact restore.",
   "author": {
     "name": "Shivam Kumar"
   },
   "license": "Apache-2.0",
-  "keywords": ["sessions", "disk", "history", "codex", "claude-code"],
+  "keywords": ["sessions", "disk", "history", "codex"],
   "skills": "./skills/",
   "interface": {
     "displayName": "Sessionfold",
     "shortDescription": "Cold-archive oversized Codex histories.",
-    "longDescription": "Sessionfold finds repeated screenshots in local Codex histories, stores each one only once, and verifies that every archived session can be restored byte for byte. Claude Code discovery is experimental.",
+    "longDescription": "Sessionfold finds repeated screenshots in local Codex histories, stores each one only once, and verifies that every archived session can be restored byte for byte. The current alpha supports Codex only.",
     "developerName": "Shivam Kumar",
     "category": "Productivity",
     "capabilities": ["Analyze local session storage"],

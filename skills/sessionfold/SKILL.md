@@ -1,6 +1,6 @@
 ---
 name: sessionfold
-description: Audit disk usage from local Codex or Claude Code histories, identify repeated inline image payloads, and create or restore safe deduplicated archives. Use when histories, sessions, rollout JSONL, screenshots, compaction, or agent storage consume excessive disk or cause the app to slow, freeze, or fail.
+description: Audit disk usage from local Codex histories, identify repeated inline image payloads, and create or restore safe deduplicated archives. Use when Codex histories, sessions, rollout JSONL, screenshots, compaction, or agent storage consume excessive disk or cause the app to slow, freeze, or fail.
 ---
 
 # Sessionfold
@@ -46,4 +46,5 @@ bin/sessionfold list [--store PATH] [--json]
 ```
 
 The default store is `~/.sessionfold`. Codex is discovered under
-`${CODEX_HOME:-~/.codex}/sessions`; Claude Code under `~/.claude/projects`.
+`${CODEX_HOME:-~/.codex}/sessions`. The current alpha does not support Claude
+Code. Do not reclaim Claude Code histories with it.
